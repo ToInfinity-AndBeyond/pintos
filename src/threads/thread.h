@@ -99,6 +99,8 @@ struct thread
 #endif
 
     /* Owned by thread.c. */
+    int nice;                           /* Higher values -> gives up more CPU time */
+    double recent_cpu;
     unsigned magic;                     /* Detects stack overflow. */
   };
 

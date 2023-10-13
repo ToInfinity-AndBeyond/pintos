@@ -88,7 +88,7 @@ timer_elapsed(int64_t then)
    Used for inserting list to sleep_list in an ordered way. */
 bool compare_wakeup_tick(const struct list_elem *a,
                          const struct list_elem *b,
-                         void *aux)
+                         void *aux UNUSED)
 {
   int64_t tickA = list_entry(a, struct sleeping_thread, element)->wakeup_tick;
   int64_t tickB = list_entry(b, struct sleeping_thread, element)->wakeup_tick;

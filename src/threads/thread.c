@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -11,6 +12,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "../devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -64,7 +66,7 @@ static void kernel_thread (thread_func *, void *aux);
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
-static void init_thread (struct thread *, const char *name, int priority);
+static void init_thread (struct thread *, const char *name, int priority, double recent_cpu);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
@@ -95,7 +97,7 @@ thread_init (void)
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
-  init_thread (initial_thread, "main", PRI_DEFAULT);
+  init_thread (initial_thread, "main", PRI_DEFAULT, 0);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
 }
@@ -140,7 +142,17 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
-
+    t->recent_cpu++;
+  
+  if (timer_ticks() % TIMER_FREQ == 0) {
+    struct list_elem *e;
+    for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
+      struct thread *t = list_entry(e, struct thread, allelem);
+      t->recent_cpu = (2 * thread_get_load_avg()) / (2 * thread_get_load_avg() + 1)
+                      * t->recent_cpu + t->nice;
+    }
+  }
+  
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
@@ -188,7 +200,7 @@ thread_create (const char *name, int priority,
     return TID_ERROR;
 
   /* Initialize thread. */
-  init_thread (t, name, priority);
+  init_thread (t, name, priority, thread_current()->recent_cpu);
   tid = t->tid = allocate_tid ();
 
   /* Prepare thread for first run by initializing its stack.
@@ -364,7 +376,7 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  /* Not yet implemented. */
+  thread_current()->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
@@ -372,7 +384,7 @@ int
 thread_get_nice (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -388,7 +400,7 @@ int
 thread_get_recent_cpu (void) 
 {
   /* Not yet implemented. */
-  return 0;
+  return round(thread_current()->recent_cpu * 100);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -464,7 +476,7 @@ is_thread (struct thread *t)
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
-init_thread (struct thread *t, const char *name, int priority)
+init_thread (struct thread *t, const char *name, int priority, double recent_cpu)
 {
   enum intr_level old_level;
 
@@ -476,7 +488,17 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  t->priority = priority;
+  if (thread_mlfqs)
+  {
+    t->priority = PRI_MAX - recent_cpu / 4;
+  } 
+  else
+  {
+    t->priority = priority;
+  }
+  
+  t->nice = 0;
+  t->recent_cpu = recent_cpu;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
