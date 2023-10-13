@@ -39,6 +39,8 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+static double load_avg;
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
@@ -144,13 +146,16 @@ thread_tick (void)
     kernel_ticks++;
     t->recent_cpu++;
   
-  if (timer_ticks() % TIMER_FREQ == 0) {
+  if (timer_ticks() % TIMER_FREQ == 0)
+  {
+    load_avg = (59 / 60) * load_avg + (1 / 60) * list_size(&ready_list);
+
     struct list_elem *e;
     for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
       struct thread *t = list_entry(e, struct thread, allelem);
       t->recent_cpu = (2 * thread_get_load_avg()) / (2 * thread_get_load_avg() + 1)
                       * t->recent_cpu + t->nice;
-    }
+    } 
   }
   
   /* Enforce preemption. */
@@ -391,15 +396,13 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return round(load_avg * 100);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
   return round(thread_current()->recent_cpu * 100);
 }
 
