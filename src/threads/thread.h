@@ -24,12 +24,6 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-/* Element for list of donated priorities*/
-struct priority_donation {
-    int64_t donation;               /* Priority received from the donator thread */
-    struct list_elem element;       /* List element for all sleeping thread list. */
-};
-
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -95,7 +89,7 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
    //  int priority;                       /* Priority. */
     int base_priority;                  /* Base priority */
-    struct list donation_list;          /* Ordered list of priorities donated from other threads */
+    int donated_priority;               /* Highest donated priority */
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */

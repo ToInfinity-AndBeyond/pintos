@@ -373,28 +373,11 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
-  int effective_priority = thread_current()->base_priority;
-
-  if(!list_empty(&thread_current()->donation_list)) {
-    int max_base_priority = list_front(&thread_current()->donation_list);
-    if(max_base_priority > effective_priority) {
-      effective_priority = max_base_priority;
-    }
+  if(thread_current()->base_priority > thread_current()->donated_priority) {
+    return thread_current()->base_priority;
+  } else {
+    return thread_current()->donated_priority;
   }
-  
-  return effective_priority;
-}
-
-/* Compares two priority_donation based on their donation value.
-   Used for inserting donated priority to donation_list in an descending order. */
-bool 
-compare_priority_donation(const struct list_elem *a,
-                          const struct list_elem *b,
-                          void *aux UNUSED)
-{
-  int donationA = list_entry(a, struct priority_donation, element)->donation;
-  int donationB = list_entry(b, struct priority_donation, element)->donation;
-  return donationA > donationB;
 }
 
 /* Donate the PRIORITY to thread T */
@@ -403,9 +386,9 @@ thread_donate_priority(struct thread* t, int priority) {
   ASSERT(t != NULL);
   ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
 
-  struct priority_donation new_donation;
-  new_donation.donation = priority;
-  list_insert_ordered(&t->donation_list, &new_donation.element, &compare_priority_donation, NULL);
+  if(t->donated_priority < priority) {
+    t->donated_priority = priority;
+  }
 }
 
 /* Revoke the donation with value PRIORITY from thread T 
@@ -414,20 +397,8 @@ void
 thread_revoke_donation(struct thread* t, int priority) {
   ASSERT(t != NULL);
   ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
-  ASSERT(!list_empty(&t->donation_list));
-
-  struct list_elem *e;
-  for(e = list_begin(&t->donation_list); e != list_end(&t->donation_list); e = list_next (e)) {
-    struct priority_donation *dp = list_entry(e, struct priority_donation, element);
-    if(dp->donation == priority) {
-      list_remove(&dp->element);
-      return;
-    }
-  }
-
-  /* Couldn't find the donated priority value to revoke.
-     The assert below will cause error to help debugging. */
-  ASSERT(false);
+  
+  t->donated_priority = PRI_MIN;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -554,7 +525,7 @@ init_thread (struct thread *t, const char *name, int priority, double recent_cpu
     t->base_priority = priority;
   }
 
-  list_init(&t->donation_list); /* Initialize list for priority donation */
+  t->donated_priority = PRI_MIN;
   
   t->nice = 0;
   t->recent_cpu = recent_cpu;
