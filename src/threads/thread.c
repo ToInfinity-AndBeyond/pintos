@@ -4,7 +4,6 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -386,6 +385,51 @@ thread_get_priority (void)
   return effective_priority;
 }
 
+/* Compares two priority_donation based on their donation value.
+   Used for inserting donated priority to donation_list in an descending order. */
+bool 
+compare_priority_donation(const struct list_elem *a,
+                          const struct list_elem *b,
+                          void *aux UNUSED)
+{
+  int donationA = list_entry(a, struct priority_donation, element)->donation;
+  int donationB = list_entry(b, struct priority_donation, element)->donation;
+  return donationA > donationB;
+}
+
+/* Donate the PRIORITY to thread T */
+void
+thread_donate_priority(struct thread* t, int priority) {
+  ASSERT(t != NULL);
+  ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
+
+  struct priority_donation new_donation;
+  new_donation.donation = priority;
+  list_insert_ordered(&t->donation_list, &new_donation.element, &compare_priority_donation, NULL);
+}
+
+/* Revoke the donation with value PRIORITY from thread T 
+   Removing a donation still preserves the descending order of donation_list */
+void
+thread_revoke_donation(struct thread* t, int priority) {
+  ASSERT(t != NULL);
+  ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
+  ASSERT(!list_empty(&t->donation_list));
+
+  struct list_elem *e;
+  for(e = list_begin(&t->donation_list); e != list_end(&t->donation_list); e = list_next (e)) {
+    struct priority_donation *dp = list_entry(e, struct priority_donation, element);
+    if(dp->donation == priority) {
+      list_remove(&dp->element);
+      return;
+    }
+  }
+
+  /* Couldn't find the donated priority value to revoke.
+     The assert below will cause error to help debugging. */
+  ASSERT(false);
+}
+
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice UNUSED) 
@@ -500,6 +544,7 @@ init_thread (struct thread *t, const char *name, int priority, double recent_cpu
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
+
   if (thread_mlfqs)
   {
     t->base_priority = PRI_MAX - recent_cpu / 4;
@@ -509,7 +554,7 @@ init_thread (struct thread *t, const char *name, int priority, double recent_cpu
     t->base_priority = priority;
   }
 
-  list_init(&t->donation_list); /* Initialize list for priority donation*/
+  list_init(&t->donation_list); /* Initialize list for priority donation */
   
   t->nice = 0;
   t->recent_cpu = recent_cpu;
