@@ -367,14 +367,23 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  thread_current ()->base_priority = new_priority;
 }
 
-/* Returns the current thread's priority. */
+/* Returns the current thread's effective priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  int effective_priority = thread_current()->base_priority;
+
+  if(!list_empty(&thread_current()->donation_list)) {
+    int max_base_priority = list_front(&thread_current()->donation_list);
+    if(max_base_priority > effective_priority) {
+      effective_priority = max_base_priority;
+    }
+  }
+  
+  return effective_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -493,12 +502,14 @@ init_thread (struct thread *t, const char *name, int priority, double recent_cpu
   t->stack = (uint8_t *) t + PGSIZE;
   if (thread_mlfqs)
   {
-    t->priority = PRI_MAX - recent_cpu / 4;
+    t->base_priority = PRI_MAX - recent_cpu / 4;
   } 
   else
   {
-    t->priority = priority;
+    t->base_priority = priority;
   }
+
+  list_init(&t->donation_list); /* Initialize list for priority donation*/
   
   t->nice = 0;
   t->recent_cpu = recent_cpu;
