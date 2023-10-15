@@ -142,8 +142,10 @@ thread_tick(void)
     user_ticks++;
 #endif
   else
+  {
     kernel_ticks++;
     t->recent_cpu = add_real_and_int(t->recent_cpu, 1);
+  }
   
   int ticks = timer_ticks();
 
@@ -426,8 +428,8 @@ thread_set_priority(int new_priority)
   if (!thread_mlfqs)
   {
     thread_current()->base_priority = new_priority;
-    thread_preempt();
   }
+  thread_preempt();
 }
 
 /* Returns the current thread's effective priority. */
