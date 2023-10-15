@@ -422,21 +422,33 @@ thread_foreach(thread_action_func *func, void *aux)
 void 
 thread_set_priority(int new_priority)
 {
-  thread_current()->base_priority = new_priority;
-  thread_preempt();
+  // TODO: See if thread_preempt() under the 'if' causes problems
+  if (!thread_mlfqs)
+  {
+    thread_current()->base_priority = new_priority;
+    thread_preempt();
+  }
 }
 
 /* Returns the current thread's effective priority. */
 int 
 thread_get_priority(void)
 {
-  if (thread_current()->base_priority > thread_current()->donated_priority)
+  // TODO: See if thread_current() can be extracted out
+  if (!thread_mlfqs)
   {
-    return thread_current()->base_priority;
+    if (thread_current()->base_priority > thread_current()->donated_priority)
+    {
+      return thread_current()->base_priority;
+    }
+    else
+    {
+      return thread_current()->donated_priority;
+    }
   }
   else
   {
-    return thread_current()->donated_priority;
+    return thread_current()->base_priority;
   }
 }
 
