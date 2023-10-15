@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "fixed-point.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -102,7 +103,7 @@ struct thread
 
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
-    double recent_cpu;
+    real recent_cpu;                    /* How much CPU time the thread has recently taken */
     unsigned magic;                     /* Detects stack overflow. */
   };
 
