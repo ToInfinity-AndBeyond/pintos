@@ -272,8 +272,8 @@ bool sema_cmp_priority(const struct list_elem *a, const struct list_elem *b,
 {
   struct list *a_waiter = &(list_entry(a, struct semaphore_elem, elem) -> semaphore.waiters);
   struct list *b_waiter = &(list_entry(b, struct semaphore_elem, elem) -> semaphore.waiters);
-  return list_entry(list_begin(a_waiter), struct thread, elem) -> base_priority
-       > list_entry(list_begin(b_waiter), struct thread, elem) -> base_priority;
+  return list_entry(list_begin(a_waiter), struct thread, elem) -> effective_priority
+       > list_entry(list_begin(b_waiter), struct thread, elem) -> effective_priority;
 }
 
 /* Atomically releases LOCK and waits for COND to be signaled by
