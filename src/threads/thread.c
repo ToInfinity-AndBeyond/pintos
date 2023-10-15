@@ -165,7 +165,8 @@ thread_tick(void)
 
   if (ticks % TIMER_FREQ == 0)
   {
-    load_avg = (59 / 60) * load_avg + (1 / 60) * list_size(&ready_list);
+    load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) +
+               multiply_real_and_int(READY_THREADS_COEFF, list_size(&ready_list));
 
     struct list_elem *e;
     for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
@@ -482,9 +483,7 @@ thread_get_nice(void)
 int 
 thread_get_load_avg(void)
 {
-  // Not implemented
-  // return round(load_avg * 100);
-  return 0;
+  return convert_to_int_round(multiply_real_and_int(load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
