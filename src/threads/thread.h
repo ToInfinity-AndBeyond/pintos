@@ -118,6 +118,13 @@ size_t threads_ready(void);
 void thread_tick (void);
 void thread_print_stats (void);
 
+/* Comapres thread priority */
+bool thread_cmp_priority(struct list_elem *a, struct list_elem *b,
+                         void *aux UNUSED);
+
+/* Preempts and yields CPU to ready_list's front thread */
+void thread_preempt(void);
+
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
