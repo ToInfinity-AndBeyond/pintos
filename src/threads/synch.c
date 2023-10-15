@@ -266,6 +266,7 @@ cond_init (struct condition *cond)
   list_init (&cond->waiters);
 }
 
+/* Compares priority of semaphore's waiters list's front thread. */
 bool sema_cmp_priority(const struct list_elem *a, const struct list_elem *b, 
                        void *aux UNUSED)
 {
@@ -306,7 +307,8 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
   
   sema_init (&waiter.semaphore, 0);
-  list_push_back (&cond->waiters, &waiter.elem);
+  /* The semaphore bound to the thread with the highest priority is inserted to the front. */
+  list_insert_ordered(&cond->waiters, &waiter.elem, sema_cmp_priority, 0);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
@@ -327,9 +329,13 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
-  if (!list_empty (&cond->waiters)) 
+  if (!list_empty (&cond->waiters))
+  {
+    /* Sorts in descending order as priority might have changed during wait*/
+    list_sort(&cond->waiters, sema_cmp_priority, 0);
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
+  }
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
