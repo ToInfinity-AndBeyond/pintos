@@ -437,18 +437,18 @@ thread_get_priority(void)
   // TODO: See if thread_current() can be extracted out
   if (!thread_mlfqs)
   {
-    if (thread_current()->base_priority > thread_current()->donated_priority)
+    if (thread_current()->effective_priority > thread_current()->effective_priority)
     {
-      return thread_current()->base_priority;
+      return thread_current()->effective_priority;
     }
     else
     {
-      return thread_current()->donated_priority;
+      return thread_current()->effective_priority;
     }
   }
   else
   {
-    return thread_current()->base_priority;
+    return thread_current()->effective_priority;
   }
 }
 
@@ -459,9 +459,9 @@ thread_donate_priority(struct thread *t, int priority)
   ASSERT(t != NULL);
   ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
 
-  if (t->donated_priority < priority)
+  if (priority > t->effective_priority )
   {
-    t->donated_priority = priority;
+    t->effective_priority = priority;
   }
 }
 
@@ -473,7 +473,7 @@ thread_revoke_donation(struct thread *t, int priority)
   ASSERT(t != NULL);
   ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
 
-  t->donated_priority = PRI_MIN;
+  t->effective_priority = t->base_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -610,7 +610,7 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
     t->base_priority = priority;
   }
 
-  t->donated_priority = PRI_MIN;
+  t->effective_priority = t->base_priority;
 
   t->nice = nice;
   t->recent_cpu = recent_cpu;
