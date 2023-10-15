@@ -184,7 +184,7 @@ thread_cmp_priority(struct list_elem *a, struct list_elem *b,
    and thread_set_priority, so this function should be called in these two cases. -*/
 void thread_preempt(void)
 {
-  if (!list_empty(&ready_list) && thread_current() -> base_priority 
+  if (!intr_context() && !list_empty(&ready_list) && thread_current() -> base_priority 
       < list_entry(list_front(&ready_list), struct thread, elem) -> base_priority) 
   {
     thread_yield();
@@ -557,6 +557,8 @@ init_thread(struct thread *t, const char *name, int priority, double recent_cpu)
   t->status = THREAD_BLOCKED;
   strlcpy(t->name, name, sizeof t->name);
   t->stack = (uint8_t *)t + PGSIZE;
+  
+
 
   if (thread_mlfqs)
   {
@@ -572,6 +574,7 @@ init_thread(struct thread *t, const char *name, int priority, double recent_cpu)
   t->nice = 0;
   t->recent_cpu = recent_cpu;
   t->magic = THREAD_MAGIC;
+
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
