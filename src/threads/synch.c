@@ -266,6 +266,15 @@ cond_init (struct condition *cond)
   list_init (&cond->waiters);
 }
 
+bool sema_cmp_priority(const struct list_elem *a, const struct list_elem *b, 
+                       void *aux UNUSED)
+{
+  struct list *a_waiter = &(list_entry(a, struct semaphore_elem, elem) -> semaphore.waiters);
+  struct list *b_waiter = &(list_entry(b, struct semaphore_elem, elem) -> semaphore.waiters);
+  return list_entry(list_begin(a_waiter), struct thread, elem) -> base_priority
+       > list_entry(list_begin(b_waiter), struct thread, elem) -> base_priority;
+}
+
 /* Atomically releases LOCK and waits for COND to be signaled by
    some other piece of code.  After COND is signaled, LOCK is
    reacquired before returning.  LOCK must be held before calling
