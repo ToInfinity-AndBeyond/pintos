@@ -10,17 +10,17 @@
 
 typedef int32_t real;
 
-extern real convert_to_real(int n);
-extern int convert_to_int_towards_zero(real r);
-extern int convert_to_int_round(real r);
-extern real add_reals(real x, real y);
-extern real sub_reals(real x, real y);
-extern real add_real_and_int(real x, int n);
-extern real sub_real_and_int(real x, int n);
-extern real multiply_reals(real x, real y);
-extern real multiply_real_and_int(real x, int n);
-extern real divide_reals(real x, real y);
-extern real divide_real_and_int(real x, int n);
+// extern real convert_to_real(int n);
+// extern int convert_to_int_towards_zero(real r);
+// extern int convert_to_int_round(real r);
+// extern real add_reals(real x, real y);
+// extern real sub_reals(real x, real y);
+// extern real add_real_and_int(real x, int n);
+// extern real sub_real_and_int(real x, int n);
+// extern real multiply_reals(real x, real y);
+// extern real multiply_real_and_int(real x, int n);
+// extern real divide_reals(real x, real y);
+// extern real divide_real_and_int(real x, int n);
 
 inline real convert_to_real(int n)
 {
