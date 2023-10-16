@@ -208,7 +208,7 @@ bool
 thread_cmp_priority(struct list_elem *a, struct list_elem *b,
                          void *aux UNUSED)
 {
-  return thread_get_priority_of(list_entry(a, struct thread, elem)) > thread_get_priority_of(list_entry(b, struct thread, elem));
+  return list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority;
 }
 
 /* When ready list's priority changes, thread_preempt compares current thread's priority
@@ -219,7 +219,7 @@ void thread_preempt(void)
 {
   if (!intr_context() && !list_empty(&ready_list)) 
   {
-    if(thread_get_priority_of(thread_current()) < thread_get_priority_of(list_entry(list_front(&ready_list), struct thread, elem)))
+    if(thread_current() -> priority < list_entry(list_front(&ready_list), struct thread, elem) -> priority)
       thread_yield();
   }
 }
@@ -424,15 +424,6 @@ thread_foreach(thread_action_func *func, void *aux)
   }
 }
 
-bool
-thread_cmp_donate_priority(const struct list_elem *a, const struct list_elem *b,
-                           void *aux UNUSED)
-{
-  return list_entry(a, struct thread, donation_elem) -> priority
-       > list_entry(b, struct thread, donation_elem) -> priority;
-}
-
-
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void 
 thread_set_priority(int new_priority)
@@ -445,27 +436,32 @@ thread_set_priority(int new_priority)
   thread_preempt();
 }
 
-int
-thread_get_priority_of(struct thread *t) {
-  if(t->base_priority > t->donated_priority)
-    return t->base_priority;
-  else 
-    return t->donated_priority;
-}
-
 /* Returns the current thread's effective priority. */
 int 
 thread_get_priority(void)
 {
+
+  return thread_current() -> priority;
   // TODO: See if thread_current() can be extracted out 
+
+  /*
   if (!thread_mlfqs)
   {
     return thread_get_priority_of(thread_current());
   }
   else
   {
-    return thread_current()->base_priority; // this can still be effective_priority
+    return thread_current()->priority; // this can still be effective_priority
   }
+  */
+}
+
+bool
+thread_cmp_donate_priority(const struct list_elem *a, const struct list_elem *b,
+                           void *aux UNUSED)
+{
+  return list_entry(a, struct thread, donation_elem) -> priority
+       > list_entry(b, struct thread, donation_elem) -> priority;
 }
 
 /* Donate the PRIORITY to all threads nested below thread T */
@@ -473,40 +469,19 @@ void
 thread_donate_priority(struct thread *t)
 {
   ASSERT(t != NULL);
-
-  int priority = thread_get_priority_of(t);
-
-  struct thread *cur_thread = t;
+  struct thread *cur = t;
+  int cur_priority = cur->priority;
 
   for(int i = 0; i < NESTING_DEPTH; i++) {
-    if(cur_thread->waiting_lock == NULL)
+    if(cur->waiting_lock == NULL)
+    {
       break;
-      
-    cur_thread = cur_thread->waiting_lock->holder;
-    if(cur_thread == NULL)
-      break; 
-    
-    thread_donate_single_priority(cur_thread, priority);
-  }
-
-  // thread_preempt();
-}
-
-/* Donate PRIORITY to a single thread T, remove and push it in the ready_list again 
-   (It only donates if the donating PRIORITY is greater than the donee's effective_priority) */
-void
-thread_donate_single_priority(struct thread *t, int priority)
-{
-  ASSERT(t != NULL);
-  ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
-  if(priority > t->donated_priority) {
-    t->donated_priority = priority;
-    if(t->status == THREAD_READY) {
-      list_remove(&t->elem);
-      list_insert_ordered(&ready_list, &t->elem, &thread_cmp_priority, 0);
-    }
+    } 
+    cur = cur->waiting_lock->holder;
+    cur->priority = cur_priority;
   }
 }
+
 
 /* Revoke the donation from thread T*/
 void 
