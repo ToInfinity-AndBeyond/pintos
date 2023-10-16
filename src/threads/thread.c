@@ -208,7 +208,8 @@ bool
 thread_cmp_priority(struct list_elem *a, struct list_elem *b,
                          void *aux UNUSED)
 {
-  return list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority;
+  return list_entry(a, struct thread, elem)->priority 
+       > list_entry(b, struct thread, elem)->priority;
 }
 
 /* When ready list's priority changes, thread_preempt compares current thread's priority
@@ -429,10 +430,13 @@ void
 thread_set_priority(int new_priority)
 {
   // TODO: See if thread_preempt() under the 'if' causes problems
+  
   if (!thread_mlfqs)
   {
     thread_current()->base_priority = new_priority;
   }
+  
+  update_priority();
   thread_preempt();
 }
 
@@ -500,20 +504,22 @@ remove_donation_list(struct lock *lock)
   }
 }
 
-/* Revoke the donation from thread T*/
+/* If current list's donation_list is empty, base_priority is restored. Otherwise, current list's priority 
+   is updated with the priority of thread with maximum priority stored in donation list. */
 void 
-remove_donation_list(struct lock *lock)
+update_priority(void)
 {
-  ASSERT(t != NULL);
+  struct thread *cur = thread_current();
+  /* Restores cur's priority to base priority if donation_list is empty. */
+  cur->priority = cur->base_priority; 
 
-  t->donated_priority = PRI_MIN;
-
-  if(t->status == THREAD_READY) {
-    list_remove(&t->elem);
-    list_insert_ordered(&ready_list, &t->elem, &thread_cmp_priority, 0);
+  if (!list_empty (&cur->donation_list)) {
+    struct thread *max_priority_thread = list_entry(list_front(&cur->donation_list),
+                           struct thread, donation_elem);
+    if (max_priority_thread->priority > cur->priority) {
+      cur->priority = max_priority_thread->priority;
+    }
   }
-
-  // thread_preempt();
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -528,6 +534,7 @@ int
 thread_get_nice(void)
 {
   /* Not yet implemented. */
+  
   return thread_current()->nice;
 }
 
@@ -634,9 +641,10 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   t->status = THREAD_BLOCKED;
   strlcpy(t->name, name, sizeof t->name);
   t->stack = (uint8_t *)t + PGSIZE;
-  
+  t->priority = priority;
 
 
+/*
   if (thread_mlfqs)
   {
     t->base_priority = convert_to_int_towards_zero(
@@ -647,14 +655,16 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   }
   else
   {
-    t->base_priority = priority;
+    
   }
+  */
 
-  t->donated_priority = PRI_MIN;
+  t->base_priority = priority;
   t->waiting_lock = NULL;
+  list_init(&t -> donation_list);
 
-  t->nice = nice;
-  t->recent_cpu = recent_cpu;
+  //t->nice = nice;
+  //t->recent_cpu = recent_cpu;
   t->magic = THREAD_MAGIC;
 
 

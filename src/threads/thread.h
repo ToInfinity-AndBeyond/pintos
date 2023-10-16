@@ -25,8 +25,8 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-#define LOAD_AVG_COEFF ((real) ((59 * FIXED_MULTIPLIER) / (60 * FIXED_MULTIPLIER)))
-#define READY_THREADS_COEFF ((real) ((1 * FIXED_MULTIPLIER) / (60 * FIXED_MULTIPLIER)))
+ #define LOAD_AVG_COEFF ((real) ((59 * FIXED_MULTIPLIER) / (60 * FIXED_MULTIPLIER)))
+ #define READY_THREADS_COEFF ((real) ((1 * FIXED_MULTIPLIER) / (60 * FIXED_MULTIPLIER)))
 
 /* A kernel thread or user process.
 
@@ -151,7 +151,6 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
-int thread_get_priority_of(struct thread*t);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
@@ -162,7 +161,8 @@ bool thread_cmp_donate_priority(const struct list_elem *a, const struct list_ele
 void thread_donate_priority (struct thread *t);
 /* Remove thread from donation list. */
 void remove_donation_list(struct lock *lock);
-void thread_revoke_donation(struct thread *t);
+void update_priority(void);
+
 
 int thread_get_nice (void);
 void thread_set_nice (int);
