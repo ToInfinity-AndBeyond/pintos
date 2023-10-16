@@ -150,45 +150,45 @@ thread_tick(void)
     t->recent_cpu = add_real_and_int(t->recent_cpu, 1);
   }
   
-  int ticks = timer_ticks();
+  // int ticks = timer_ticks();
 
-  if (ticks % 4 == 0)
-  {
-    struct list_elem *e;
-    for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
-    {
-      struct thread *t = list_entry(e, struct thread, allelem);
-      t->base_priority = convert_to_int_towards_zero(
-        sub_real_and_int(
-          sub_int_and_real(PRI_MAX, divide_real_and_int(t->recent_cpu, 4)),
-          t->nice * 2
-      ));
-      if (t->base_priority < PRI_MIN)
-        t->base_priority = PRI_MIN;
-    }
-  }
+  // if (ticks % 4 == 0)
+  // {
+  //   struct list_elem *e;
+  //   for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  //   {
+  //     struct thread *t = list_entry(e, struct thread, allelem);
+  //     t->base_priority = convert_to_int_towards_zero(
+  //       sub_real_and_int(
+  //         sub_int_and_real(PRI_MAX, divide_real_and_int(t->recent_cpu, 4)),
+  //         t->nice * 2
+  //     ));
+  //     if (t->base_priority < PRI_MIN)
+  //       t->base_priority = PRI_MIN;
+  //   }
+  // }
 
-  if (ticks % TIMER_FREQ == 0)
-  {
-    load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) +
-               multiply_real_and_int(READY_THREADS_COEFF, list_size(&ready_list));
+  // if (ticks % TIMER_FREQ == 0)
+  // {
+  //   load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) +
+  //              multiply_real_and_int(READY_THREADS_COEFF, list_size(&ready_list));
 
-    struct list_elem *e;
-    for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
-    {
-      struct thread *t = list_entry(e, struct thread, allelem);
-      t->recent_cpu = add_real_and_int(
-        multiply_reals(
-          divide_reals(
-            multiply_real_and_int(load_avg, 2),
-            add_real_and_int(multiply_real_and_int(load_avg, 2), 1)
-          ),
-          t->recent_cpu
-        ),
-        t->nice
-      );
-    }
-  }
+  //   struct list_elem *e;
+  //   for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  //   {
+  //     struct thread *t = list_entry(e, struct thread, allelem);
+  //     t->recent_cpu = add_real_and_int(
+  //       multiply_reals(
+  //         divide_reals(
+  //           multiply_real_and_int(load_avg, 2),
+  //           add_real_and_int(multiply_real_and_int(load_avg, 2), 1)
+  //         ),
+  //         t->recent_cpu
+  //       ),
+  //       t->nice
+  //     );
+  //   }
+  // }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -470,6 +470,9 @@ thread_donate_priority(struct thread *t)
   struct thread *cur_thread = t;
 
   for(int i = 0; i < NESTING_DEPTH; i++) {
+    if(cur_thread->waiting_lock == NULL)
+      break;
+      
     cur_thread = cur_thread->waiting_lock->holder;
     if(cur_thread == NULL)
       break; 
@@ -477,7 +480,7 @@ thread_donate_priority(struct thread *t)
     thread_donate_single_priority(cur_thread, priority);
   }
 
-  thread_preempt();
+  // thread_preempt();
 }
 
 /* Donate PRIORITY to a single thread T, remove and push it in the ready_list again 
@@ -487,7 +490,6 @@ thread_donate_single_priority(struct thread *t, int priority)
 {
   ASSERT(t != NULL);
   ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
-  
   if(priority > t->donated_priority) {
     t->donated_priority = priority;
     if(t->status == THREAD_READY) {
@@ -497,8 +499,7 @@ thread_donate_single_priority(struct thread *t, int priority)
   }
 }
 
-/* Revoke the donation from thread T and all threads nested above it
-   (This DOES INCLUDE the thread T itself) */
+/* Revoke the donation from thread T*/
 void 
 thread_revoke_donation(struct thread *t)
 {
