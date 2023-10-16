@@ -69,10 +69,11 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0) 
     {
       list_insert_ordered(&sema->waiters, &thread_current()->elem,
-                          thread_cmp_priority, 0);
+                          &thread_cmp_priority, 0);
       thread_block ();
     }
   sema->value--;
+  thread_preempt();
   intr_set_level (old_level);
 }
 
@@ -198,8 +199,12 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  thread_current()->waiting_lock = lock;
+  thread_donate_priority(thread_current());
+
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  thread_current()->waiting_lock = NULL;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -230,8 +235,14 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock) 
 {
+  enum intr_level old_level;
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
+
+  // old_level = intr_disable ();
+  // thread_revoke_donation(lock->holder);
+  // intr_set_level (old_level);
+
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
@@ -272,8 +283,8 @@ bool sema_cmp_priority(const struct list_elem *a, const struct list_elem *b,
 {
   struct list *a_waiter = &(list_entry(a, struct semaphore_elem, elem) -> semaphore.waiters);
   struct list *b_waiter = &(list_entry(b, struct semaphore_elem, elem) -> semaphore.waiters);
-  return list_entry(list_begin(a_waiter), struct thread, elem) -> effective_priority
-       > list_entry(list_begin(b_waiter), struct thread, elem) -> effective_priority;
+  return thread_get_priority_of(list_entry(list_begin(a_waiter), struct thread, elem))
+       > thread_get_priority_of(list_entry(list_begin(b_waiter), struct thread, elem));
 }
 
 /* Atomically releases LOCK and waits for COND to be signaled by

@@ -21,6 +21,9 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
+/* Limit of donations a thread can nest into */
+#define NESTING_DEPTH 8
+
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -205,7 +208,7 @@ bool
 thread_cmp_priority(struct list_elem *a, struct list_elem *b,
                          void *aux UNUSED)
 {
-  return list_entry(a, struct thread, elem)->base_priority > list_entry(b, struct thread, elem)->base_priority;
+  return thread_get_priority_of(list_entry(a, struct thread, elem)) > thread_get_priority_of(list_entry(b, struct thread, elem));
 }
 
 /* When ready list's priority changes, thread_preempt compares current thread's priority
@@ -214,10 +217,10 @@ thread_cmp_priority(struct list_elem *a, struct list_elem *b,
    and thread_set_priority, so this function should be called in these two cases. -*/
 void thread_preempt(void)
 {
-  if (!intr_context() && !list_empty(&ready_list) && thread_current() -> base_priority 
-      < list_entry(list_front(&ready_list), struct thread, elem) -> base_priority) 
+  if (!intr_context() && !list_empty(&ready_list)) 
   {
-    thread_yield();
+    if(thread_get_priority_of(thread_current()) < thread_get_priority_of(list_entry(list_front(&ready_list), struct thread, elem)))
+      thread_yield();
   }
 }
 /* Creates a new kernel thread named NAME with the given initial
@@ -285,6 +288,7 @@ thread_create(const char *name, int priority,
   /* Add to run queue. */
   thread_unblock(t);
   thread_preempt();
+
   return tid;
 }
 
@@ -324,7 +328,7 @@ thread_unblock(struct thread *t)
 
   /* Using thread_cmp_priority, list_insert ordered inserts thread in ready_list in descending
      order based on the priority, so that the thread with highest priority comes to the front. */
-  list_insert_ordered(&ready_list, &t->elem, thread_cmp_priority, 0);
+  list_insert_ordered(&ready_list, &t->elem, &thread_cmp_priority, 0);
   t->status = THREAD_READY;
   intr_set_level(old_level);
 }
@@ -397,7 +401,7 @@ thread_yield(void)
   if (cur != idle_thread)
   /* Using thread_cmp_priority, list_insert ordered inserts thread in ready_list in descending
      order based on the priority, so that the thread with highest priority comes to the front. */
-    list_insert_ordered(&ready_list, &cur->elem, thread_cmp_priority, 0);
+    list_insert_ordered(&ready_list, &cur->elem, &thread_cmp_priority, 0);
   cur->status = THREAD_READY;
   schedule();
   intr_set_level(old_level);
@@ -432,50 +436,82 @@ thread_set_priority(int new_priority)
   thread_preempt();
 }
 
+int
+thread_get_priority_of(struct thread *t) {
+  if(t->base_priority > t->donated_priority)
+    return t->base_priority;
+  else 
+    return t->donated_priority;
+}
+
 /* Returns the current thread's effective priority. */
 int 
 thread_get_priority(void)
 {
-  // TODO: See if thread_current() can be extracted out
+  // TODO: See if thread_current() can be extracted out 
   if (!thread_mlfqs)
   {
-    if (thread_current()->effective_priority > thread_current()->effective_priority)
-    {
-      return thread_current()->effective_priority;
-    }
-    else
-    {
-      return thread_current()->effective_priority;
-    }
+    return thread_get_priority_of(thread_current());
   }
   else
   {
-    return thread_current()->effective_priority;
+    return thread_current()->base_priority; // this can still be effective_priority
   }
 }
 
-/* Donate the PRIORITY to thread T */
+/* Donate the PRIORITY to all threads nested below thread T */
 void 
-thread_donate_priority(struct thread *t, int priority)
+thread_donate_priority(struct thread *t)
+{
+  ASSERT(t != NULL);
+
+  int priority = thread_get_priority_of(t);
+
+  struct thread *cur_thread = t;
+
+  for(int i = 0; i < NESTING_DEPTH; i++) {
+    cur_thread = cur_thread->waiting_lock->holder;
+    if(cur_thread == NULL)
+      break; 
+    
+    thread_donate_single_priority(cur_thread, priority);
+  }
+
+  thread_preempt();
+}
+
+/* Donate PRIORITY to a single thread T, remove and push it in the ready_list again 
+   (It only donates if the donating PRIORITY is greater than the donee's effective_priority) */
+void
+thread_donate_single_priority(struct thread *t, int priority)
 {
   ASSERT(t != NULL);
   ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
-
-  if (priority > t->effective_priority )
-  {
-    t->effective_priority = priority;
+  
+  if(priority > t->donated_priority) {
+    t->donated_priority = priority;
+    if(t->status == THREAD_READY) {
+      list_remove(&t->elem);
+      list_insert_ordered(&ready_list, &t->elem, &thread_cmp_priority, 0);
+    }
   }
 }
 
-/* Revoke the donation with value PRIORITY from thread T
-   Removing a donation still preserves the descending order of donation_list */
+/* Revoke the donation from thread T and all threads nested above it
+   (This DOES INCLUDE the thread T itself) */
 void 
-thread_revoke_donation(struct thread *t, int priority)
+thread_revoke_donation(struct thread *t)
 {
   ASSERT(t != NULL);
-  ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
 
-  t->effective_priority = t->base_priority;
+  t->donated_priority = PRI_MIN;
+
+  if(t->status == THREAD_READY) {
+    list_remove(&t->elem);
+    list_insert_ordered(&ready_list, &t->elem, &thread_cmp_priority, 0);
+  }
+
+  // thread_preempt();
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -612,7 +648,8 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
     t->base_priority = priority;
   }
 
-  t->effective_priority = t->base_priority;
+  t->donated_priority = PRI_MIN;
+  t->waiting_lock = NULL;
 
   t->nice = nice;
   t->recent_cpu = recent_cpu;
