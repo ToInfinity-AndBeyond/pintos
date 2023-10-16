@@ -248,10 +248,8 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  old_level = intr_disable ();
-  thread_revoke_donation(lock->holder);
-  intr_set_level (old_level);
-
+  remove_donation_list(lock);
+  recover_priority();
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
