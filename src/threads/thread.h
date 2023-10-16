@@ -155,10 +155,13 @@ int thread_get_priority_of(struct thread*t);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
-/* Comapres donated priority */
+/* Comapres donated priority. */
 bool thread_cmp_donate_priority(const struct list_elem *a, const struct list_elem *b, 
                                 void *aux UNUSED);
+/* Donate priority to the thread. */
 void thread_donate_priority (struct thread *t);
+/* Remove thread from donation list. */
+void remove_donation_list(struct lock *lock);
 void thread_revoke_donation(struct thread *t);
 
 int thread_get_nice (void);

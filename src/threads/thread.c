@@ -456,6 +456,7 @@ thread_get_priority(void)
   */
 }
 
+/* Comapres donated priority. */
 bool
 thread_cmp_donate_priority(const struct list_elem *a, const struct list_elem *b,
                            void *aux UNUSED)
@@ -482,10 +483,26 @@ thread_donate_priority(struct thread *t)
   }
 }
 
+/* Remove thread from the donation_list 
+   that matches the lock which is to be released. */
+void 
+remove_donation_list(struct lock *lock)
+{
+  struct thread *cur = thread_current();
+  struct list_elem *elem = list_begin(&cur -> donation_list);
+
+  while(elem != list_end(&cur->donation_list)) {
+    struct thread *donating_thread = list_entry(elem, struct thread, donation_elem);
+    if (donating_thread->waiting_lock == lock) {
+      list_remove(&donating_thread->donation_elem);
+    }
+    elem = list_next(elem);
+  }
+}
 
 /* Revoke the donation from thread T*/
 void 
-thread_revoke_donation(struct thread *t)
+remove_donation_list(struct lock *lock)
 {
   ASSERT(t != NULL);
 
