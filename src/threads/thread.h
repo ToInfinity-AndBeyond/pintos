@@ -130,6 +130,7 @@ void thread_print_stats (void);
 bool thread_cmp_priority(struct list_elem *a, struct list_elem *b,
                          void *aux UNUSED);
 
+
 /* Preempts and yields CPU to ready_list's front thread */
 void thread_preempt(void);
 
@@ -149,6 +150,10 @@ void thread_yield (void);
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
+
+/* Comapres donated priority */
+bool thread_cmp_donate_priority(const struct list_elem *a, const struct list_elem *b, 
+                                void *aux UNUSED);
 
 int thread_get_priority_of(struct thread*t);
 int thread_get_priority (void);

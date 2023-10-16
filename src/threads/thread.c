@@ -424,6 +424,15 @@ thread_foreach(thread_action_func *func, void *aux)
   }
 }
 
+bool
+thread_cmp_donate_priority(const struct list_elem *a, const struct list_elem *b,
+                           void *aux UNUSED)
+{
+  return list_entry(a, struct thread, donation_elem) -> priority
+       > list_entry(b, struct thread, donation_elem) -> priority;
+}
+
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void 
 thread_set_priority(int new_priority)
