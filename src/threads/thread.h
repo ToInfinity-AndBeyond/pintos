@@ -25,10 +25,8 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-// #define LOAD_AVG_COEFF ((real) ((59 * FIXED_MULTIPLIER) / (60 * FIXED_MULTIPLIER)))
-// #define READY_THREADS_COEFF ((real) ((1 * FIXED_MULTIPLIER) / (60 * FIXED_MULTIPLIER)))
-#define LOAD_AVG_COEFF ((real) 16110)
-#define READY_THREADS_COEFF ((real) 273)
+#define LOAD_AVG_COEFF ((real) ((59 * FIXED_MULTIPLIER) / (60 * FIXED_MULTIPLIER)))
+#define READY_THREADS_COEFF ((real) ((1 * FIXED_MULTIPLIER) / (60 * FIXED_MULTIPLIER)))
 
 /* A kernel thread or user process.
 
@@ -93,13 +91,17 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int base_priority;                  /* Base priority */
-    int donated_priority;               /* Highest donated priority */
-    struct lock *waiting_lock;          /* Thread it is waiting to release lock */
+    int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+    int base_priority;                  /* Base priority. */
+    struct lock *waiting_lock;          /* Lock this thread is waiting for. */
+    struct list donation_list;          /* List of threads donate priority to this thread. */
+    struct list_elem donation_elem;     /* Donation List element. */
+
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -128,6 +130,7 @@ void thread_print_stats (void);
 bool thread_cmp_priority(struct list_elem *a, struct list_elem *b,
                          void *aux UNUSED);
 
+
 /* Preempts and yields CPU to ready_list's front thread */
 void thread_preempt(void);
 
@@ -148,12 +151,18 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
-int thread_get_priority_of(struct thread*t);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
+/* Comapres donated priority. */
+bool thread_cmp_donate_priority(const struct list_elem *a, const struct list_elem *b, 
+                                void *aux UNUSED);
+/* Donate priority to the thread. */
 void thread_donate_priority (struct thread *t);
-void thread_revoke_donation(struct thread *t);
+/* Remove thread from donation list. */
+void remove_donation_list(struct lock *lock);
+void update_priority(void);
+
 
 int thread_get_nice (void);
 void thread_set_nice (int);
