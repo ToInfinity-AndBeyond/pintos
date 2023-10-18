@@ -494,8 +494,12 @@ thread_donate_priority(struct thread *t)
       break;
     } 
     cur = cur->waiting_lock->holder;
-    cur->priority = cur_priority;
+    if(cur->priority < cur_priority) {
+      cur->priority = cur_priority;
+    }
   }
+
+  update_priority(); 
 }
 
 /* Receive donation from threads waiting for LOCK */
@@ -515,6 +519,8 @@ thread_receive_donation_from(struct lock* lock)
                         thread_cmp_donate_priority, 0);
     elem = list_next(elem);
   }
+
+  update_priority(); 
 }
 
 /* Remove thread from the donation_list 
@@ -532,6 +538,8 @@ remove_donation_list(struct lock *lock)
     }
     elem = list_next(elem);
   }
+
+  update_priority();
 }
 
 /* If current list's donation_list is empty, base_priority is restored. Otherwise, current list's priority 
