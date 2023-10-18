@@ -214,8 +214,14 @@ lock_acquire (struct lock *lock)
     thread_donate_priority(cur);
   }
 
+  update_priority(); 
+
   sema_down (&lock->semaphore);
   lock->holder = cur;
+  
+  thread_receive_donation_from(lock);
+  update_priority(); 
+  cur->waiting_lock = NULL; 
 }
 
 /* Tries to acquires LOCK and returns true if successful or false

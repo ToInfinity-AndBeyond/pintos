@@ -498,6 +498,25 @@ thread_donate_priority(struct thread *t)
   }
 }
 
+/* Receive donation from threads waiting for LOCK */
+void
+thread_receive_donation_from(struct lock* lock)
+{
+  ASSERT(lock != NULL);
+  ASSERT(lock->holder == thread_current());
+
+  struct thread *cur_thread = thread_current();
+  struct list_elem *elem = list_begin(&lock->semaphore.waiters);
+
+  while(elem != list_end(&lock->semaphore.waiters)) {
+    struct thread *donating_thread = list_entry(elem, struct thread, elem);
+
+    list_insert_ordered(&cur_thread->donation_list, &donating_thread->donation_elem,
+                        thread_cmp_donate_priority, 0);
+    elem = list_next(elem);
+  }
+}
+
 /* Remove thread from the donation_list 
    that matches the lock which is to be released. */
 void 
