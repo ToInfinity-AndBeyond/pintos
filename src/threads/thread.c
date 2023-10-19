@@ -28,6 +28,71 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+static struct list ready_list_0;
+static struct list ready_list_1;
+static struct list ready_list_2;
+static struct list ready_list_3;
+static struct list ready_list_4;
+static struct list ready_list_5;
+static struct list ready_list_6;
+static struct list ready_list_7;
+static struct list ready_list_8;
+static struct list ready_list_9;
+static struct list ready_list_10;
+static struct list ready_list_11;
+static struct list ready_list_12;
+static struct list ready_list_13;
+static struct list ready_list_14;
+static struct list ready_list_15;
+static struct list ready_list_16;
+static struct list ready_list_17;
+static struct list ready_list_18;
+static struct list ready_list_19;
+static struct list ready_list_20;
+static struct list ready_list_21;
+static struct list ready_list_22;
+static struct list ready_list_23;
+static struct list ready_list_24;
+static struct list ready_list_25;
+static struct list ready_list_26;
+static struct list ready_list_27;
+static struct list ready_list_28;
+static struct list ready_list_29;
+static struct list ready_list_30;
+static struct list ready_list_31;
+static struct list ready_list_32;
+static struct list ready_list_33;
+static struct list ready_list_34;
+static struct list ready_list_35;
+static struct list ready_list_36;
+static struct list ready_list_37;
+static struct list ready_list_38;
+static struct list ready_list_39;
+static struct list ready_list_40;
+static struct list ready_list_41;
+static struct list ready_list_42;
+static struct list ready_list_43;
+static struct list ready_list_44;
+static struct list ready_list_45;
+static struct list ready_list_46;
+static struct list ready_list_47;
+static struct list ready_list_48;
+static struct list ready_list_49;
+static struct list ready_list_50;
+static struct list ready_list_51;
+static struct list ready_list_52;
+static struct list ready_list_53;
+static struct list ready_list_54;
+static struct list ready_list_55;
+static struct list ready_list_56;
+static struct list ready_list_57;
+static struct list ready_list_58;
+static struct list ready_list_59;
+static struct list ready_list_60;
+static struct list ready_list_61;
+static struct list ready_list_62;
+static struct list ready_list_63;
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -178,7 +243,7 @@ thread_tick(void)
       real old_load_avg = load_avg;
       bool idle_running = idle_thread->status == THREAD_RUNNING;
       load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) + 
-                 multiply_real_and_int(READY_THREADS_COEFF, threads_ready() + idle_running ? 0 : 1);
+                 multiply_real_and_int(READY_THREADS_COEFF, threads_ready() + (idle_running ? 0 : 1));
 
       if (old_load_avg != load_avg)
       {
@@ -440,13 +505,10 @@ thread_foreach(thread_action_func *func, void *aux)
 void 
 thread_set_priority(int new_priority)
 {
-  // TODO: See if thread_preempt() under the 'if' causes problems
-  
   if (!thread_mlfqs)
   {
     thread_current()->base_priority = new_priority;
   }
-  
   update_priority();
   thread_preempt();
 }
@@ -455,20 +517,14 @@ thread_set_priority(int new_priority)
 int 
 thread_get_priority(void)
 {
-
-  return thread_current() -> priority;
-  // TODO: See if thread_current() can be extracted out 
-
-  /*
   if (!thread_mlfqs)
   {
-    return thread_get_priority_of(thread_current());
+    return thread_current()->priority;
   }
   else
   {
-    return thread_current()->priority; // this can still be effective_priority
+    return thread_current()->base_priority;
   }
-  */
 }
 
 /* Comapres donated priority. */
@@ -654,8 +710,6 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
 
-
-/*
   if (thread_mlfqs)
   {
     t->base_priority = convert_to_int_towards_zero(
@@ -666,18 +720,15 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   }
   else
   {
-    
+    t->base_priority = priority;
   }
-  */
 
-  t->base_priority = priority;
   t->waiting_lock = NULL;
-  list_init(&t -> donation_list);
+  list_init(&t->donation_list);
 
-  //t->nice = nice;
-  //t->recent_cpu = recent_cpu;
+  t->nice = nice;
+  t->recent_cpu = recent_cpu;
   t->magic = THREAD_MAGIC;
-
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
