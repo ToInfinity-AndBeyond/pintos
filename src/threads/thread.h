@@ -127,8 +127,8 @@ void thread_tick (void);
 void thread_print_stats (void);
 
 /* Comapres thread priority */
-bool thread_cmp_priority(struct list_elem *a, struct list_elem *b,
-                         void *aux UNUSED);
+bool thread_cmp_priority(const struct list_elem *a, const struct list_elem *b,
+                         void *aux);
 
 
 /* Preempts and yields CPU to ready_list's front thread */
