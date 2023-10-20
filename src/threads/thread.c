@@ -155,7 +155,6 @@ thread_tick(void)
   {  
     int ticks = timer_ticks();
 
-    real old_load_avg = load_avg;
     if (ticks % TIMER_FREQ == 0)
     {
       bool idle_running = idle_thread->status == THREAD_RUNNING;
