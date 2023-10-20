@@ -26,6 +26,8 @@ typedef int tid_t;
 #define PRI_MAX 63                      /* Highest priority. */
 
 #define LOAD_AVG_COEFF ((real) 16110)
+// #define LOAD_AVG_NUMERATOR 59
+// #define LOAD_AVG_DENOMINATOR 60
 #define READY_THREADS_COEFF ((real) 273)
 
 /* A kernel thread or user process.

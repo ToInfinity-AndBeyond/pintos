@@ -155,6 +155,30 @@ thread_tick(void)
   {  
     int ticks = timer_ticks();
 
+    real old_load_avg = load_avg;
+    if (ticks % TIMER_FREQ == 0)
+    {
+      bool idle_running = idle_thread->status == THREAD_RUNNING;
+      load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) + 
+                 multiply_real_and_int(READY_THREADS_COEFF, threads_ready() + (idle_running ? 0 : 1));
+      
+      struct list_elem *e;
+      for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+      {
+        struct thread *t = list_entry(e, struct thread, allelem);
+        t->recent_cpu = add_real_and_int(
+          multiply_reals(
+            divide_reals(
+              multiply_real_and_int(load_avg, 2),
+              add_real_and_int(multiply_real_and_int(load_avg, 2), 1)
+            ),
+            t->recent_cpu
+          ),
+          t->nice
+        );
+      }
+    }
+
     if (ticks % 4 == 0)
     {
       struct list_elem *e;
@@ -170,35 +194,7 @@ thread_tick(void)
           t->base_priority = PRI_MIN;
       }
     }
-
     
-
-    if (ticks % TIMER_FREQ == 0)
-    {
-      real old_load_avg = load_avg;
-      bool idle_running = idle_thread->status == THREAD_RUNNING;
-      load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) + 
-                 multiply_real_and_int(READY_THREADS_COEFF, threads_ready() + (idle_running ? 0 : 1));
-
-      if (old_load_avg != load_avg)
-      {
-        struct list_elem *e;
-        for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
-        {
-          struct thread *t = list_entry(e, struct thread, allelem);
-          t->recent_cpu = add_real_and_int(
-            multiply_reals(
-              divide_reals(
-                multiply_real_and_int(load_avg, 2),
-                add_real_and_int(multiply_real_and_int(load_avg, 2), 1)
-              ),
-              t->recent_cpu
-            ),
-            t->nice
-          );
-        }
-      }
-    }
   }
 
   /* Enforce preemption. */
