@@ -130,6 +130,46 @@ threads_ready(void)
   return list_size(&ready_list);
 }
 
+static void
+mlfqs_calculate_prio(void) {
+  struct list_elem *e;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    t->base_priority = convert_to_int_towards_zero(
+      sub_real_and_int(
+        sub_int_and_real(PRI_MAX, divide_real_and_int(t->recent_cpu, 4)),
+        t->nice * 2
+    ));
+    if (t->base_priority < PRI_MIN)
+      t->base_priority = PRI_MIN;
+  }
+}
+
+static void
+mlfqs_calculate_load_cpu(void) {
+  bool idle_running = idle_thread->status == THREAD_RUNNING;
+  load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) + 
+              multiply_real_and_int(READY_THREADS_COEFF, threads_ready() + 
+              (idle_running ? 0 : 1));
+  
+  struct list_elem *e;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    t->recent_cpu = add_real_and_int(
+      multiply_reals(
+        divide_reals(
+          multiply_real_and_int(load_avg, 2),
+          add_real_and_int(multiply_real_and_int(load_avg, 2), 1)
+        ),
+        t->recent_cpu
+      ),
+      t->nice
+    );
+  }
+}
+
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void 
@@ -147,57 +187,26 @@ thread_tick(void)
   else
   {
     kernel_ticks++;
+    /* Increments recent_cpu for currently running thread */
     if (thread_mlfqs)
       t->recent_cpu = add_real_and_int(t->recent_cpu, 1);
   }
 
+  
   if (thread_mlfqs)
   {  
     int ticks = timer_ticks();
 
-    if (ticks % 4 == 0)
-    {
-      struct list_elem *e;
-      for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
-      {
-        struct thread *t = list_entry(e, struct thread, allelem);
-        t->base_priority = convert_to_int_towards_zero(
-          sub_real_and_int(
-            sub_int_and_real(PRI_MAX, divide_real_and_int(t->recent_cpu, 4)),
-            t->nice * 2
-        ));
-        if (t->base_priority < PRI_MIN)
-          t->base_priority = PRI_MIN;
-      }
-    }
-
-    
-
+    /* Updates values for load_avg, and recent_cpu for all threads every second*/
     if (ticks % TIMER_FREQ == 0)
     {
-      real old_load_avg = load_avg;
-      bool idle_running = idle_thread->status == THREAD_RUNNING;
-      load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) + 
-                 multiply_real_and_int(READY_THREADS_COEFF, threads_ready() + idle_running ? 0 : 1);
+      mlfqs_calculate_load_cpu();
+    }
 
-      if (old_load_avg != load_avg)
-      {
-        struct list_elem *e;
-        for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
-        {
-          struct thread *t = list_entry(e, struct thread, allelem);
-          t->recent_cpu = add_real_and_int(
-            multiply_reals(
-              divide_reals(
-                multiply_real_and_int(load_avg, 2),
-                add_real_and_int(multiply_real_and_int(load_avg, 2), 1)
-              ),
-              t->recent_cpu
-            ),
-            t->nice
-          );
-        }
-      }
+    /* Updates priorities of threads every 4th tick */
+    if (ticks % 4 == 0)
+    {
+      mlfqs_calculate_prio();
     }
   }
 
@@ -216,11 +225,16 @@ thread_print_stats(void)
 
 /* compares priority of two threads */
 bool 
-thread_cmp_priority(struct list_elem *a, struct list_elem *b,
+thread_cmp_priority(const struct list_elem *a, const struct list_elem *b,
                          void *aux UNUSED)
 {
-  return list_entry(a, struct thread, elem)->priority 
-       > list_entry(b, struct thread, elem)->priority;
+  if (!thread_mlfqs) {
+    return list_entry(a, struct thread, elem)->priority 
+        > list_entry(b, struct thread, elem)->priority;
+  }
+
+  return list_entry(a, struct thread, elem)->base_priority 
+        > list_entry(b, struct thread, elem)->base_priority;
 }
 
 /* When ready list's priority changes, thread_preempt compares current thread's priority
@@ -440,13 +454,10 @@ thread_foreach(thread_action_func *func, void *aux)
 void 
 thread_set_priority(int new_priority)
 {
-  // TODO: See if thread_preempt() under the 'if' causes problems
-  
   if (!thread_mlfqs)
   {
     thread_current()->base_priority = new_priority;
   }
-  
   update_priority();
   thread_preempt();
 }
@@ -455,20 +466,14 @@ thread_set_priority(int new_priority)
 int 
 thread_get_priority(void)
 {
-
-  return thread_current() -> priority;
-  // TODO: See if thread_current() can be extracted out 
-
-  /*
   if (!thread_mlfqs)
   {
-    return thread_get_priority_of(thread_current());
+    return thread_current()->priority;
   }
   else
   {
-    return thread_current()->priority; // this can still be effective_priority
+    return thread_current()->base_priority;
   }
-  */
 }
 
 /* Comapres donated priority. */
@@ -674,6 +679,7 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   ASSERT(t != NULL);
   ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT(name != NULL);
+  ASSERT(-20 <= nice && nice <= 20);
 
   memset(t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
@@ -681,8 +687,6 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
 
-
-/*
   if (thread_mlfqs)
   {
     t->base_priority = convert_to_int_towards_zero(
@@ -693,18 +697,15 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   }
   else
   {
-    
+    t->base_priority = priority;
   }
-  */
 
-  t->base_priority = priority;
   t->waiting_lock = NULL;
-  list_init(&t -> donation_list);
+  list_init(&t->donation_list);
 
-  //t->nice = nice;
-  //t->recent_cpu = recent_cpu;
+  t->nice = nice;
+  t->recent_cpu = recent_cpu;
   t->magic = THREAD_MAGIC;
-
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);

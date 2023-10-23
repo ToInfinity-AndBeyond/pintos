@@ -26,6 +26,8 @@ typedef int tid_t;
 #define PRI_MAX 63                      /* Highest priority. */
 
 #define LOAD_AVG_COEFF ((real) 16110)
+// #define LOAD_AVG_NUMERATOR 59
+// #define LOAD_AVG_DENOMINATOR 60
 #define READY_THREADS_COEFF ((real) 273)
 
 /* A kernel thread or user process.
@@ -127,8 +129,8 @@ void thread_tick (void);
 void thread_print_stats (void);
 
 /* Comapres thread priority */
-bool thread_cmp_priority(struct list_elem *a, struct list_elem *b,
-                         void *aux UNUSED);
+bool thread_cmp_priority(const struct list_elem *a, const struct list_elem *b,
+                         void *aux);
 
 
 /* Preempts and yields CPU to ready_list's front thread */
@@ -159,9 +161,6 @@ bool thread_cmp_donate_priority(const struct list_elem *a, const struct list_ele
                                 void *aux UNUSED);
 /* Donate priority to the thread. */
 void thread_donate_priority (struct thread *t);
-/* Receive donation from all the threads that wants the lock 
-   that the current thread has acquired */
-void thread_receive_donation_from(struct lock* lock);
 /* Remove thread from donation list. */
 void remove_donation_list(struct lock *lock);
 void update_priority(void);
