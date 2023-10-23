@@ -130,6 +130,46 @@ threads_ready(void)
   return list_size(&ready_list);
 }
 
+static void
+mlfqs_calculate_prio(void) {
+  struct list_elem *e;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    t->base_priority = convert_to_int_towards_zero(
+      sub_real_and_int(
+        sub_int_and_real(PRI_MAX, divide_real_and_int(t->recent_cpu, 4)),
+        t->nice * 2
+    ));
+    if (t->base_priority < PRI_MIN)
+      t->base_priority = PRI_MIN;
+  }
+}
+
+static void
+mlfqs_calculate_load_cpu(void) {
+  bool idle_running = idle_thread->status == THREAD_RUNNING;
+  load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) + 
+              multiply_real_and_int(READY_THREADS_COEFF, threads_ready() + 
+              (idle_running ? 0 : 1));
+  
+  struct list_elem *e;
+  for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
+  {
+    struct thread *t = list_entry(e, struct thread, allelem);
+    t->recent_cpu = add_real_and_int(
+      multiply_reals(
+        divide_reals(
+          multiply_real_and_int(load_avg, 2),
+          add_real_and_int(multiply_real_and_int(load_avg, 2), 1)
+        ),
+        t->recent_cpu
+      ),
+      t->nice
+    );
+  }
+}
+
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void 
@@ -147,54 +187,27 @@ thread_tick(void)
   else
   {
     kernel_ticks++;
+    /* Increments recent_cpu for currently running thread */
     if (thread_mlfqs)
       t->recent_cpu = add_real_and_int(t->recent_cpu, 1);
   }
 
+  
   if (thread_mlfqs)
   {  
     int ticks = timer_ticks();
 
-    real old_load_avg = load_avg;
+    /* Updates values for load_avg, and recent_cpu for all threads every second*/
     if (ticks % TIMER_FREQ == 0)
     {
-      bool idle_running = idle_thread->status == THREAD_RUNNING;
-      load_avg = multiply_reals(LOAD_AVG_COEFF, load_avg) + 
-                 multiply_real_and_int(READY_THREADS_COEFF, threads_ready() + (idle_running ? 0 : 1));
-      
-      struct list_elem *e;
-      for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
-      {
-        struct thread *t = list_entry(e, struct thread, allelem);
-        t->recent_cpu = add_real_and_int(
-          multiply_reals(
-            divide_reals(
-              multiply_real_and_int(load_avg, 2),
-              add_real_and_int(multiply_real_and_int(load_avg, 2), 1)
-            ),
-            t->recent_cpu
-          ),
-          t->nice
-        );
-      }
+      mlfqs_calculate_load_cpu();
     }
 
+    /* Updates priorities of threads every 4th tick */
     if (ticks % 4 == 0)
     {
-      struct list_elem *e;
-      for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e))
-      {
-        struct thread *t = list_entry(e, struct thread, allelem);
-        t->base_priority = convert_to_int_towards_zero(
-          sub_real_and_int(
-            sub_int_and_real(PRI_MAX, divide_real_and_int(t->recent_cpu, 4)),
-            t->nice * 2
-        ));
-        if (t->base_priority < PRI_MIN)
-          t->base_priority = PRI_MIN;
-      }
+      mlfqs_calculate_prio();
     }
-    
   }
 
   /* Enforce preemption. */
@@ -215,16 +228,13 @@ bool
 thread_cmp_priority(const struct list_elem *a, const struct list_elem *b,
                          void *aux UNUSED)
 {
-  if (!thread_mlfqs)
-  {
+  if (!thread_mlfqs) {
     return list_entry(a, struct thread, elem)->priority 
-       > list_entry(b, struct thread, elem)->priority;
+        > list_entry(b, struct thread, elem)->priority;
   }
-  else
-  {
-    return list_entry(a, struct thread, elem)->base_priority
-       > list_entry(b, struct thread, elem)->base_priority;
-  }
+
+  return list_entry(a, struct thread, elem)->base_priority 
+        > list_entry(b, struct thread, elem)->base_priority;
 }
 
 /* When ready list's priority changes, thread_preempt compares current thread's priority
@@ -642,6 +652,7 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   ASSERT(t != NULL);
   ASSERT(PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT(name != NULL);
+  ASSERT(-20 <= nice && nice <= 20);
 
   memset(t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
