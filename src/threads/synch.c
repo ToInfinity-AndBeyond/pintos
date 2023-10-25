@@ -115,7 +115,8 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
-    list_sort(&sema->waiters, thread_cmp_priority, 0);
+    /* Sorts in descending order as priority might have changed during wait*/
+    list_sort(&sema->waiters, thread_cmp_priority, 0); 
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
   }
@@ -226,7 +227,7 @@ lock_acquire (struct lock *lock)
    thread.
 
    This function will not sleep, so it may be called within an
-   interrupt handler. */
+   interrupt handler. */ 
 bool
 lock_try_acquire (struct lock *lock)
 {
@@ -254,7 +255,6 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   remove_donation_list(lock);
-  
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
@@ -290,13 +290,15 @@ cond_init (struct condition *cond)
 }
 
 /* Compares priority of semaphore's waiters list's front thread. */
-bool sema_cmp_priority(const struct list_elem *a, const struct list_elem *b, 
-                       void *aux UNUSED)
+bool
+sema_cmp_priority(const struct list_elem *a, const struct list_elem *b, 
+                  void *aux UNUSED)
 {
-  struct list *a_waiter = &(list_entry(a, struct semaphore_elem, elem) -> semaphore.waiters);
-  struct list *b_waiter = &(list_entry(b, struct semaphore_elem, elem) -> semaphore.waiters);
-  return list_entry(list_begin(a_waiter), struct thread, elem) -> priority
-       > list_entry(list_begin(b_waiter), struct thread, elem) -> priority;
+	struct list_elem *elem_a = list_begin(&(list_entry(a, struct semaphore_elem, elem))
+                                          ->semaphore.waiters);
+	struct list_elem *elem_b = list_begin(&(list_entry(b, struct semaphore_elem, elem))
+                                          ->semaphore.waiters);
+	return thread_cmp_priority(elem_a, elem_b, NULL);
 }
 
 /* Atomically releases LOCK and waits for COND to be signaled by

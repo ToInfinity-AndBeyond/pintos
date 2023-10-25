@@ -21,9 +21,6 @@
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
-/* Limit of donations a thread can nest into */
-#define NESTING_DEPTH 8
-
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -237,15 +234,16 @@ thread_cmp_priority(const struct list_elem *a, const struct list_elem *b,
         > list_entry(b, struct thread, elem)->base_priority;
 }
 
-/* When ready list's priority changes, thread_preempt compares current thread's priority
-   and ready_list's front thread, with maximum priority, and if current thread's priority
-   is smaller, thread_yield is called. Current thread's priority can change during thread_create
+/* When ready list's priority changes, thread_preempt compares the priority of current thread
+   and ready_list's front thread, and if current thread's priority is smaller, thread_yield 
+   is called. Current thread's priority can change during thread_create
    and thread_set_priority, so this function should be called in these two cases. -*/
 void thread_preempt(void)
 {
   if (!intr_context() && !list_empty(&ready_list)) 
   {
-    if(thread_current() -> priority < list_entry(list_front(&ready_list), struct thread, elem) -> priority)
+    struct thread *max_priority_thread = list_entry(list_front(&ready_list), struct thread, elem); 
+    if(thread_current() -> priority < max_priority_thread -> priority)
       thread_yield();
   }
 }
@@ -493,18 +491,12 @@ thread_donate_priority(struct thread *t)
   struct thread *cur = t;
   int cur_priority = cur->priority;
 
-  for(int i = 0; i < NESTING_DEPTH; i++) {
-    if(cur->waiting_lock == NULL)
-    {
-      break;
-    } 
+  while(cur->waiting_lock) {
     cur = cur->waiting_lock->holder;
     if(cur->priority < cur_priority) {
       cur->priority = cur_priority;
     }
   }
-
-  update_priority(); 
 }
 
 /* Receive donation from threads waiting for LOCK */
@@ -524,12 +516,10 @@ thread_receive_donation_from(struct lock* lock)
                         thread_cmp_donate_priority, 0);
     elem = list_next(elem);
   }
-
-  update_priority(); 
 }
 
 /* Remove thread from the donation_list 
-   that matches the lock which is to be released. */
+   that matches the lock about to be released. */
 void 
 remove_donation_list(struct lock *lock)
 {

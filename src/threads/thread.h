@@ -101,7 +101,7 @@ struct thread
 
     int base_priority;                  /* Base priority. */
     struct lock *waiting_lock;          /* Lock this thread is waiting for. */
-    struct list donation_list;          /* List of threads donate priority to this thread. */
+    struct list donation_list;          /* List of threads donating priority to this thread. */
     struct list_elem donation_elem;     /* Donation List element. */
 
 
@@ -166,6 +166,7 @@ void thread_donate_priority (struct thread *t);
 void thread_receive_donation_from(struct lock* lock);
 /* Remove thread from donation list. */
 void remove_donation_list(struct lock *lock);
+/* Update priority after priority donation is over. */
 void update_priority(void);
 
 
