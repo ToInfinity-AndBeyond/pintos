@@ -212,7 +212,7 @@ lock_acquire (struct lock *lock)
     cur -> waiting_lock = lock;
     list_insert_ordered(&lock_holder_thread->donation_list, &cur->donation_elem,
                         thread_cmp_donate_priority, 0);
-    thread_donate_priority(cur);
+    thread_donate_priority();
   }
 
   sema_down (&lock->semaphore);

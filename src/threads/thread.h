@@ -160,7 +160,7 @@ void thread_set_priority (int);
 bool thread_cmp_donate_priority(const struct list_elem *a, const struct list_elem *b, 
                                 void *aux UNUSED);
 /* Donate priority to the thread. */
-void thread_donate_priority (struct thread *t);
+void thread_donate_priority ();
 /* Remove thread from donation list. */
 void remove_donation_list(struct lock *lock);
 /* Update priority after priority donation is over. */
