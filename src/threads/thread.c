@@ -234,10 +234,10 @@ thread_cmp_priority(const struct list_elem *a, const struct list_elem *b,
         > list_entry(b, struct thread, elem)->base_priority;
 }
 
-/* When ready list's priority changes, thread_preempt compares the priority of current thread
+/* When current thread's priority changes, thread_preempt compares the priority of current thread
    and ready_list's front thread, and if current thread's priority is smaller, thread_yield 
    is called. Current thread's priority can change during thread_create
-   and thread_set_priority, so this function should be called in these two cases. -*/
+   and thread_set_priority, so this function should be called in these two cases. */
 void thread_preempt(void)
 {
   if (!intr_context() && !list_empty(&ready_list)) 
