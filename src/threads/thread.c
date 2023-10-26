@@ -485,7 +485,7 @@ thread_cmp_donate_priority(const struct list_elem *a, const struct list_elem *b,
 
 /* Donate the PRIORITY to all threads nested below thread T */
 void 
-thread_donate_priority()
+thread_donate_priority(void)
 {
   struct thread *cur = thread_current();
   int cur_priority = cur->priority;
