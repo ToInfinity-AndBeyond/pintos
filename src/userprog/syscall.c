@@ -1,9 +1,12 @@
 #include "userprog/syscall.h"
+#include "lib/user/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "devices/shutdown.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -48,15 +51,20 @@ void exit(int status)
 pid_t exec(const char *cmd_line)
 {
   return process_execute(cmd_line);
-
 }
 
 bool create(const char *file, unsigned initial_size)
 {
-  return filesys_create(file, initial_size)
+  return filesys_create(file, initial_size);
 }
 
 bool remove(const char *file)
 {
   return filesys_remove(file);
+}
+
+int write(int fd, const void *buffer, unsigned size)
+{
+  // return file_write(fd, buffer, size);
+  return 0;
 }
