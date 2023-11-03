@@ -3,6 +3,7 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "filesys/filesys.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -31,4 +32,31 @@ check_ptr(void *ptr) {
     free(ptr);
     thread_exit();
   }
+}
+
+void halt(void)
+{
+  shutdown_power_off();
+}
+
+void exit(int status)
+{
+  thread_exit();
+}
+
+// TODO: Need a semaphore here for ordering
+pid_t exec(const char *cmd_line)
+{
+  return process_execute(cmd_line);
+
+}
+
+bool create(const char *file, unsigned initial_size)
+{
+  return filesys_create(file, initial_size)
+}
+
+bool remove(const char *file)
+{
+  return filesys_remove(file);
 }
