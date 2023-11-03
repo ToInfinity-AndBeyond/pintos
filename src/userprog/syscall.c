@@ -7,6 +7,11 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "devices/shutdown.h"
+#include "threads/malloc.h"
+#include "threads/vaddr.h"
+
+// Could have pid_t and tid_t be the same
+// Could have struct file * and fd be the same
 
 static void syscall_handler (struct intr_frame *);
 
@@ -44,6 +49,7 @@ void halt(void)
 
 void exit(int status)
 {
+  printf("%s: exit(%d)", thread_current()->name, status);
   thread_exit();
 }
 
