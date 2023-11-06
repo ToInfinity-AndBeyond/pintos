@@ -13,7 +13,8 @@
 // Many functions treat pid_t and tid_t the same
 // Many functions treat struct file * and fd the same
 
-#define MAX_ARGS 7
+#define NO_CALLS 20
+#define MAX_ARGS 10
 
 static void syscall_handler (struct intr_frame *);
 
@@ -24,11 +25,18 @@ syscall_init (void)
 }
 
 static void
+syscall_get_args(int no_args, uint32_t *args, struct intr_frame *f) {
+  for (int i = 0; i < no_args; i++) {
+      args[i] = *(uint32_t *) (f->esp + (i + 1) * 4);
+  }
+}
+
+static void
 syscall_handler (struct intr_frame *f) {
   uint32_t args[MAX_ARGS];
   
   check_ptr(f);
-  int *syscall_args = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
+  int syscall_args[NO_CALLS] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
   int syscall_no = *(int *) f->esp;
   uint32_t syscall_ret;
   syscall_get_args(syscall_args[syscall_no], args, f);
@@ -44,7 +52,7 @@ syscall_handler (struct intr_frame *f) {
       syscall_ret = (uint32_t) exec((const char *) args[0]);
       break;
     case SYS_WAIT:
-      syscall_ret = (uint32_t) wait((__pid_t) args[0]);
+      syscall_ret = (uint32_t) wait((pid_t) args[0]);
       break;
     case SYS_CREATE:
       syscall_ret = (uint32_t) create((const char *) args[0], (unsigned) args[1]);
@@ -77,13 +85,6 @@ syscall_handler (struct intr_frame *f) {
 
   f->eax = syscall_ret;
 
-}
-
-static void
-syscall_get_args(int no_args, int *args, struct intr_frame *f) {
-  for (int i = 0; i < no_args; i++) {
-      args[i] = *(uint32_t *) (f->esp + (i + 1) * 4);
-  }
 }
 
 void
