@@ -30,7 +30,7 @@ syscall_handler (struct intr_frame *f) {
   check_ptr(f);
   int *syscall_args = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
   int syscall_no = *(int *) f->esp;
-  int syscall_ret;
+  uint32_t syscall_ret;
   syscall_get_args(syscall_args[syscall_no], args, f);
 
   switch (syscall_no) {
@@ -41,42 +41,42 @@ syscall_handler (struct intr_frame *f) {
       exit((int) args[0]);
       break;
     case SYS_EXEC:
-      syscall_ret = exec((const char *) args[0]);
+      syscall_ret = (uint32_t) exec((const char *) args[0]);
       break;
     case SYS_WAIT:
-      syscall_ret = wait((__pid_t) args[0]);
+      syscall_ret = (uint32_t) wait((__pid_t) args[0]);
       break;
     case SYS_CREATE:
-      syscall_ret = create((const char *) args[0], (unsigned) args[1]);
+      syscall_ret = (uint32_t) create((const char *) args[0], (unsigned) args[1]);
       break;
     case SYS_REMOVE:
-      syscall_ret = remove((const char *) args[0]);
+      syscall_ret = (uint32_t) remove((const char *) args[0]);
       break;
     case SYS_OPEN:
-      syscall_ret = open((const char *) args[0]);
+      syscall_ret = (uint32_t) open((const char *) args[0]);
       break;
     case SYS_FILESIZE:
-      syscall_ret = filesize((int) args[0]);
+      syscall_ret = (uint32_t) filesize((int) args[0]);
       break;
     case SYS_READ:
-      syscall_ret = read((int) args[0], (void *) args[1], (unsigned) args[2]);
+      syscall_ret = (uint32_t) read((int) args[0], (void *) args[1], (unsigned) args[2]);
       break;
     case SYS_WRITE:
-      syscall_ret = write((int) args[0], (void *) args[1], (unsigned) args[2]);
+      syscall_ret = (uint32_t) write((int) args[0], (void *) args[1], (unsigned) args[2]);
       break;
     case SYS_SEEK:
       seek((int) args[0], (unsigned) args[1]);
       break;
     case SYS_TELL:
-      syscall_ret = tell((int) args[0]);
+      syscall_ret = (uint32_t) tell((int) args[0]);
       break;
     case SYS_CLOSE:
       close((int) args[0]);
       break;
     }
 
-  printf ("system call!\n");
-  thread_exit ();
+  f->eax = syscall_ret;
+
 }
 
 static void
