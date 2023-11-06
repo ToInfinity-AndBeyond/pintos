@@ -38,12 +38,44 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  char *thread_name;
+  char *token;
+  thread_name = strtok_r(fn_copy, " ", &token);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
 }
+
+/* A function that sets up an iniitial stack. */
+void 
+arg_stack(char **argv,int argc,void **esp)
+{
+  for (int i = argc - 1; i >= 0; i--) {
+    *esp -= (strlen (argv[i]) + 1);
+    memcpy(*esp, argv[i], strlen (argv[i]) + 1);
+    argv[i] = *esp;
+  }
+
+  int align = ((uint32_t) *esp) % 4;
+  *esp -= align*sizeof(char);
+  memcpy(*esp, 0, align*sizeof(char));
+  *esp -= sizeof(char *);
+  memcpy(*esp, 0, sizeof(char *));
+  
+  for (int i = argc - 1; i >= 0; i--) {
+    *esp -= sizeof(char*);
+    memcpy(*esp, &argv[i], sizeof(char *));
+  }
+  *esp -= sizeof(char**);
+  memcpy(*esp, argv, sizeof(char**));
+  *esp -= sizeof(int);
+  memcpy(*esp, &argc, sizeof(int));
+  *esp -= sizeof(void*);
+  memcpy(*esp, 0, sizeof(void*));
+ }
 
 /* A thread function that loads a user process and starts it
    running. */
@@ -53,6 +85,17 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+
+  char *argv[LOADER_ARGS_LEN / 2 + 1];
+  char *token;
+  char *save_ptr;
+  int argc = 0;
+
+  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;)
+  {
+    argv[argc] = token;
+    argc++;
+  }
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -66,6 +109,10 @@ start_process (void *file_name_)
   if (!success) 
     thread_exit ();
 
+  arg_stack(argv, argc, &if_.esp);
+  hex_dump(if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
+  
+
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -75,6 +122,7 @@ start_process (void *file_name_)
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
+
 
 /* Waits for thread TID to die and returns its exit status. 
  * If it was terminated by the kernel (i.e. killed due to an exception), 
@@ -88,7 +136,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  for (;;);
 }
 
 /* Free the current process's resources. */
@@ -360,7 +408,6 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
      assertions in memcpy(), etc. */
   if (phdr->p_vaddr < PGSIZE)
     return false;
-
   /* It's okay. */
   return true;
 }
