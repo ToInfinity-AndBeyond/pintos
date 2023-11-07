@@ -10,7 +10,7 @@
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
 
-// Many functions treat pid_t and tid_t the same
+// Many functions treat pid_t and tid_t the same (UTA confirmation this is fine)
 // Many functions treat struct file * and fd the same
 
 static void syscall_handler (struct intr_frame *);
@@ -49,8 +49,9 @@ void halt(void)
 
 void exit(int status)
 {
-  printf("%s: exit(%d)", thread_current()->name, status);
-  thread_exit();
+  struct thread *t = thread_current();
+  printf("%s: exit(%d)\n", t->name, status);
+  thread_exit();  
 }
 
 // TODO: Need a semaphore here for ordering
@@ -59,10 +60,34 @@ pid_t exec(const char *cmd_line)
   return process_execute(cmd_line);
 }
 
-// int wait(pid_t pid)
-// {
+// Uses int process_wait(tid_t child_tid)
+int wait(pid_t pid)
+{
+  struct thread *t = thread_current();
+  struct thread *relevant_child;
+  bool found = false;
 
-// }
+  struct list_elem *e;
+  for (e = list_begin(&t->children_list); e != list_end(&t->children_list); e = list_next(e))
+  {
+    struct thread *child = list_entry(e, struct thread, child_elem);
+    if (child->tid == pid)
+    {
+      relevant_child = child;
+      found = true;
+    }
+  }
+
+  if (!found || relevant_child->parent_is_waiting)
+  {
+    return -1;
+  }
+
+  relevant_child->parent_is_waiting = true;
+
+  // Seems as if I could do this at the beginning so this is incorrect
+  return process_wait(relevant_child->tid);
+}
 
 bool create(const char *file, unsigned initial_size)
 {

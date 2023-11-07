@@ -50,7 +50,7 @@ process_execute (const char *file_name)
 }
 
 /* A function that sets up an iniitial stack. */
-void 
+static void 
 arg_stack(char **argv,int argc,void **esp)
 {
   for (int i = argc - 1; i >= 0; i--) {
