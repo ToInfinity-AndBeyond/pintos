@@ -40,7 +40,7 @@ process_execute (const char *file_name)
 
   char *thread_name;
   char *token;
-  thread_name = strtok_r(fn_copy, " ", &token);
+  thread_name = strtok_r(file_name, " ", &token);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
@@ -61,9 +61,9 @@ arg_stack(char **argv,int argc,void **esp)
 
   int align = ((uint32_t) *esp) % 4;
   *esp -= align*sizeof(char);
-  memcpy(*esp, 0, align*sizeof(char));
+  memset(*esp, 0, align*sizeof(char));
   *esp -= sizeof(char *);
-  memcpy(*esp, 0, sizeof(char *));
+  memset(*esp, 0, sizeof(char *));
   
   for (int i = argc - 1; i >= 0; i--) {
     *esp -= sizeof(char*);
@@ -74,7 +74,7 @@ arg_stack(char **argv,int argc,void **esp)
   *esp -= sizeof(int);
   memcpy(*esp, &argc, sizeof(int));
   *esp -= sizeof(void*);
-  memcpy(*esp, 0, sizeof(void*));
+  memset(*esp, 0, sizeof(void*));
  }
 
 /* A thread function that loads a user process and starts it
@@ -91,25 +91,33 @@ start_process (void *file_name_)
   char *save_ptr;
   int argc = 0;
 
-  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL;)
+
+  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
   {
     argv[argc] = token;
     argc++;
   }
-
+  
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (argv[0], &if_.eip, &if_.esp);
+
+  arg_stack(argv, argc, &if_.esp);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
 
-  arg_stack(argv, argc, &if_.esp);
+/*
+    if (test_overflow (argc, argv, if_.esp)) 
+    success = false;
+  else
+    load_arguments (argc, argv, &if_.esp);
+*/
   hex_dump(if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
   
 
