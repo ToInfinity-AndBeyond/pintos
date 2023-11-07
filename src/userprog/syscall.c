@@ -24,6 +24,13 @@ syscall_init (void)
 }
 
 static void
+syscall_get_args(int no_args, int *args, struct intr_frame *f) {
+  for (int i = 0; i < no_args; i++) {
+      args[i] = *(uint32_t *) (f->esp + (i + 1) * 4);
+  }
+}
+
+static void
 syscall_handler (struct intr_frame *f) {
   uint32_t args[MAX_ARGS];
   
@@ -44,7 +51,7 @@ syscall_handler (struct intr_frame *f) {
       syscall_ret = exec((const char *) args[0]);
       break;
     case SYS_WAIT:
-      syscall_ret = wait((__pid_t) args[0]);
+      syscall_ret = wait((pid_t) args[0]);
       break;
     case SYS_CREATE:
       syscall_ret = create((const char *) args[0], (unsigned) args[1]);
@@ -77,13 +84,6 @@ syscall_handler (struct intr_frame *f) {
 
   printf ("system call!\n");
   thread_exit ();
-}
-
-static void
-syscall_get_args(int no_args, int *args, struct intr_frame *f) {
-  for (int i = 0; i < no_args; i++) {
-      args[i] = *(uint32_t *) (f->esp + (i + 1) * 4);
-  }
 }
 
 void

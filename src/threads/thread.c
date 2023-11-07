@@ -695,7 +695,6 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   list_init(&t->donation_list);
   list_init(&t->children_list);
   t->parent_is_waiting = false;
-  t->parent = NULL;
 
   t->nice = nice;
   t->recent_cpu = recent_cpu;
