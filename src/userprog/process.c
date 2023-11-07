@@ -144,7 +144,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  for (;;);
+  for (;;) {barrier();}
 }
 
 /* Free the current process's resources. */
