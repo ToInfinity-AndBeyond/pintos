@@ -223,7 +223,7 @@ lock_acquire (struct lock *lock)
 
   list_push_front(&thread_current()->holding_locks, &lock->elem);
 
-  enum intr_level old_level = intr_disable ();
+  old_level = intr_disable ();
 
   lock->holder = cur;
   
