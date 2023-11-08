@@ -106,6 +106,7 @@ void halt(void)
   shutdown_power_off();
 }
 
+// process_wait_sema added to thread.h means 'get parent and up the semaphore'
 void exit(int status)
 {
   struct thread *t = thread_current();

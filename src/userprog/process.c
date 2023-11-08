@@ -145,6 +145,9 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  // struct thread *t = thread_current();
+  // sema_down(t->process_wait_sema);
+
   for (;;) {barrier();}
 }
 
