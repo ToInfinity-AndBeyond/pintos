@@ -13,7 +13,8 @@
 // Many functions treat pid_t and tid_t the same (UTA confirmation this is fine)
 // Many functions treat struct file * and fd the same
 
-#define MAX_ARGS 7
+#define NO_CALLS 20
+#define MAX_ARGS 10
 
 static void syscall_handler (struct intr_frame *);
 
@@ -24,7 +25,7 @@ syscall_init (void)
 }
 
 static void
-syscall_get_args(int no_args, int *args, struct intr_frame *f) {
+syscall_get_args(int no_args, uint32_t *args, struct intr_frame *f) {
   for (int i = 0; i < no_args; i++) {
       args[i] = *(uint32_t *) (f->esp + (i + 1) * 4);
   }
@@ -35,9 +36,9 @@ syscall_handler (struct intr_frame *f) {
   uint32_t args[MAX_ARGS];
   
   check_ptr(f);
-  int *syscall_args = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
+  int syscall_args[NO_CALLS] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
   int syscall_no = *(int *) f->esp;
-  int syscall_ret;
+  uint32_t syscall_ret;
   syscall_get_args(syscall_args[syscall_no], args, f);
 
   switch (syscall_no) {
@@ -48,42 +49,42 @@ syscall_handler (struct intr_frame *f) {
       exit((int) args[0]);
       break;
     case SYS_EXEC:
-      syscall_ret = exec((const char *) args[0]);
+      syscall_ret = (uint32_t) exec((const char *) args[0]);
       break;
     case SYS_WAIT:
-      syscall_ret = wait((pid_t) args[0]);
+      syscall_ret = (uint32_t) wait((pid_t) args[0]);
       break;
     case SYS_CREATE:
-      syscall_ret = create((const char *) args[0], (unsigned) args[1]);
+      syscall_ret = (uint32_t) create((const char *) args[0], (unsigned) args[1]);
       break;
     case SYS_REMOVE:
-      syscall_ret = remove((const char *) args[0]);
+      syscall_ret = (uint32_t) remove((const char *) args[0]);
       break;
     case SYS_OPEN:
-      syscall_ret = open((const char *) args[0]);
+      syscall_ret = (uint32_t) open((const char *) args[0]);
       break;
     case SYS_FILESIZE:
-      syscall_ret = filesize((int) args[0]);
+      syscall_ret = (uint32_t) filesize((int) args[0]);
       break;
     case SYS_READ:
-      syscall_ret = read((int) args[0], (void *) args[1], (unsigned) args[2]);
+      syscall_ret = (uint32_t) read((int) args[0], (void *) args[1], (unsigned) args[2]);
       break;
     case SYS_WRITE:
-      syscall_ret = write((int) args[0], (void *) args[1], (unsigned) args[2]);
+      syscall_ret = (uint32_t) write((int) args[0], (void *) args[1], (unsigned) args[2]);
       break;
     case SYS_SEEK:
       seek((int) args[0], (unsigned) args[1]);
       break;
     case SYS_TELL:
-      syscall_ret = tell((int) args[0]);
+      syscall_ret = (uint32_t) tell((int) args[0]);
       break;
     case SYS_CLOSE:
       close((int) args[0]);
       break;
     }
 
-  printf ("system call!\n");
-  thread_exit ();
+  f->eax = syscall_ret;
+
 }
 
 void
