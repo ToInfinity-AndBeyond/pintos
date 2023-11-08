@@ -221,6 +221,8 @@ lock_acquire (struct lock *lock)
 
   sema_down (&lock->semaphore);
 
+  list_push_front(&thread_current()->holding_locks, &lock->elem);
+
   enum intr_level old_level = intr_disable ();
 
   lock->holder = cur;
@@ -263,6 +265,8 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   enum intr_level old_level = intr_disable ();
+
+  list_remove(&lock->elem);
 
   remove_donation_list(lock);
 
