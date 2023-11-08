@@ -401,6 +401,13 @@ thread_exit(void)
   process_exit();
 #endif
 
+  /* Release all the locks that the thread has acquired. */
+  struct list_elem *elem = list_begin(&thread_current()->holding_locks);
+  while(elem != list_end(&thread_current()->donation_list)) {
+    lock_release(list_entry(elem, struct lock, elem));
+    elem = list_next(elem);
+  }
+
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
