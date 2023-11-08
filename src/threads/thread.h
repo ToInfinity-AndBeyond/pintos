@@ -101,8 +101,9 @@ struct thread
     struct lock *waiting_lock;          /* Lock this thread is waiting for. */
     struct list donation_list;          /* List of threads donating priority to this thread. */
     struct list_elem donation_elem;     /* Donation List element. */
-    struct list children_list;
-    struct list_elem child_elem;
+    struct list children_list;          /* List of child threads */
+    struct list_elem child_elem;        /* Child list element */
+    bool parent_is_waiting;
 
 
 #ifdef USERPROG
