@@ -46,7 +46,9 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);
+  // I believe the parent-child relationship should be established here
+  // list_push_back(&thread_current()->children_list, &child_thread->child_elem);
   return tid;
 }
 
@@ -168,6 +170,10 @@ process_wait (tid_t child_tid UNUSED)
   // }
 
   // relevant_child->parent_is_waiting = true;
+
+  // sema_down(relevant_child->parent_waiting_sema);
+
+  // return get_exit_status(relevant_child);
 }
 
 /* Free the current process's resources. */

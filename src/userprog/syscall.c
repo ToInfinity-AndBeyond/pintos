@@ -102,7 +102,7 @@ void halt(void)
   shutdown_power_off();
 }
 
-// process_wait_sema added to thread.h means 'get parent and up the semaphore'
+// parent_waiting_sema added to thread.h means 'if parent_is_waiting, up it'
 void exit(int status)
 {
   struct thread *t = thread_current();
