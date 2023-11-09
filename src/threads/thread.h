@@ -105,7 +105,7 @@ struct thread
     struct list children_list;          /* List of child threads */
     struct list_elem child_elem;        /* Child list element */
     bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
-    struct semaphore *process_wait_sema;
+    struct semaphore *parent_waiting_sema;
 
 
 #ifdef USERPROG
