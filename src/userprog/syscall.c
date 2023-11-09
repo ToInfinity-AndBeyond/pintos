@@ -116,33 +116,9 @@ pid_t exec(const char *cmd_line)
   return process_execute(cmd_line);
 }
 
-// Uses int process_wait(tid_t child_tid)
 int wait(pid_t pid)
 {
-  struct thread *t = thread_current();
-  struct thread *relevant_child;
-  bool found = false;
-
-  struct list_elem *e;
-  for (e = list_begin(&t->children_list); e != list_end(&t->children_list); e = list_next(e))
-  {
-    struct thread *child = list_entry(e, struct thread, child_elem);
-    if (child->tid == pid)
-    {
-      relevant_child = child;
-      found = true;
-    }
-  }
-
-  if (!found || relevant_child->parent_is_waiting)
-  {
-    return -1;
-  }
-
-  relevant_child->parent_is_waiting = true;
-
-  // Seems as if I could do this at the beginning so this is incorrect
-  return process_wait(relevant_child->tid);
+  return process_wait(pid);
 }
 
 bool create(const char *file, unsigned initial_size)

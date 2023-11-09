@@ -104,7 +104,7 @@ struct thread
     struct list_elem donation_elem;     /* Donation List element. */
     struct list children_list;          /* List of child threads */
     struct list_elem child_elem;        /* Child list element */
-    bool parent_is_waiting;
+    bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
     struct semaphore *process_wait_sema;
 
 

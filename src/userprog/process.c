@@ -145,10 +145,29 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  // struct thread *t = thread_current();
-  // sema_down(t->process_wait_sema);
-
   for (;;) {barrier();}
+
+  // struct thread *t = thread_current();
+
+  // struct thread *relevant_child;
+  // bool found = false;
+  // struct list_elem *e;
+  // for (e = list_begin(&t->children_list); e != list_end(&t->children_list); e = list_next(e))
+  // {
+  //   struct thread *child = list_entry(e, struct thread, child_elem);
+  //   if (child->tid == child_tid)
+  //   {
+  //     struct thread *relevant_child = child;
+  //     found = true;
+  //   }
+  // }
+
+  // if (!found || relevant_child->parent_is_waiting)
+  // {
+  //   return -1;
+  // }
+
+  // relevant_child->parent_is_waiting = true;
 }
 
 /* Free the current process's resources. */
