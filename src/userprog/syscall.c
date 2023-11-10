@@ -1,5 +1,5 @@
 #include "userprog/syscall.h"
-#include "lib/user/syscall.h"
+// #include "lib/user/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -9,6 +9,7 @@
 #include "devices/shutdown.h"
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
+#include "devices/input.h"
 
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
@@ -31,7 +32,7 @@ syscall_init (void)
 
 static void
 syscall_handler (struct intr_frame *f) {
-  int *syscall_args = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
+  // int *syscall_args = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
   int syscall_no = *(int *) f->esp;
   uint32_t *esp = (uint32_t *)f->esp;
   check_ptr(esp);

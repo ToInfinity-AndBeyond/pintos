@@ -700,9 +700,6 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
 
   t->waiting_lock = NULL;
   list_init(&t->donation_list);
-  list_init(&t->children_list);
-  t->parent_is_waiting = false;
-  sema_init(t->parent_waiting_sema, 0);
 
   t->nice = nice;
   t->recent_cpu = recent_cpu;
@@ -713,10 +710,11 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   intr_set_level(old_level);  
 
   #ifdef USERPROG
-    sema_init(&(t -> child_lock), 0);
-    sema_init(&(t -> memory_lock), 0);
-    list_init(&(t->children_list));
-    list_push_back(&(running_thread()->children_list), &(t->child_elem));
+    sema_init(t -> parent_waiting_sema, 0);
+    sema_init(t -> memory_lock, 0);
+    list_init(&t->children_list);
+    list_push_back(&running_thread()->children_list, &t->child_elem);
+    bool parent_is_waiting = false;
   #endif
 }
 
