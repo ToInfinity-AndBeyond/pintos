@@ -710,6 +710,8 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   intr_set_level(old_level);  
 
   #ifdef USERPROG
+    t->parent_waiting_sema = &(struct semaphore) {};
+    t->memory_lock = &(struct semaphore) {};
     sema_init(t -> parent_waiting_sema, 0);
     sema_init(t -> memory_lock, 0);
     list_init(&t->children_list);
