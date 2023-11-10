@@ -47,9 +47,20 @@ process_execute (const char *file_name)
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
-  // I believe the parent-child relationship should be established here
-  // list_push_back(&thread_current()->children_list, &child_thread->child_elem);
+  
   return tid;
+}
+
+void *
+stack_element (void *write_dest, void *write_src, int size)
+{
+  write_dest -= size;
+  if (write_src == 0) {
+    memset(write_dest, 0, size);
+  } else {
+    memcpy (write_dest, write_src, size);
+  }
+  return write_dest;
 }
 
 /* A function that sets up an iniitial stack. */
@@ -57,27 +68,20 @@ static void
 arg_stack(char **argv,int argc,void **esp)
 {
   for (int i = argc - 1; i >= 0; i--) {
-    *esp -= (strlen (argv[i]) + 1);
-    memcpy(*esp, argv[i], strlen (argv[i]) + 1);
+    *esp = stack_element(*esp, argv[i], strlen(argv[i]) + 1);
     argv[i] = *esp;
   }
 
   int align = ((uint32_t) *esp) % 4;
-  *esp -= align*sizeof(char);
-  memset(*esp, 0, align*sizeof(char));
-  *esp -= sizeof(char *);
-  memset(*esp, 0, sizeof(char *));
+  *esp = stack_element(*esp, 0, align*sizeof(char));
+  *esp = stack_element(*esp, 0, sizeof(char*));
   
   for (int i = argc - 1; i >= 0; i--) {
-    *esp -= sizeof(char*);
-    memcpy(*esp, &argv[i], sizeof(char *));
+    *esp = stack_element(*esp, &argv[i], sizeof(char *));
   }
-  *esp -= sizeof(char**);
-  memcpy(*esp, argv, sizeof(char**));
-  *esp -= sizeof(int);
-  memcpy(*esp, &argc, sizeof(int));
-  *esp -= sizeof(void*);
-  memset(*esp, 0, sizeof(void*));
+  *esp = stack_element (*esp, esp, sizeof (char **));     
+  *esp = stack_element (*esp, &argc, sizeof (int));      
+  *esp = stack_element (*esp, 0, sizeof (void *));    
  }
 
 /* A thread function that loads a user process and starts it
@@ -115,15 +119,6 @@ start_process (void *file_name_)
   if (!success) 
     thread_exit ();
 
-/*
-    if (test_overflow (argc, argv, if_.esp)) 
-    success = false;
-  else
-    load_arguments (argc, argv, &if_.esp);
-*/
-  hex_dump(if_.esp, if_.esp, PHYS_BASE - if_.esp, true);
-  
-
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -147,33 +142,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  for (;;) {barrier();}
-
-  // struct thread *t = thread_current();
-
-  // struct thread *relevant_child;
-  // bool found = false;
-  // struct list_elem *e;
-  // for (e = list_begin(&t->children_list); e != list_end(&t->children_list); e = list_next(e))
-  // {
-  //   struct thread *child = list_entry(e, struct thread, child_elem);
-  //   if (child->tid == child_tid)
-  //   {
-  //     struct thread *relevant_child = child;
-  //     found = true;
-  //   }
-  // }
-
-  // if (!found || relevant_child->parent_is_waiting)
-  // {
-  //   return -1;
-  // }
-
-  // relevant_child->parent_is_waiting = true;
-
-  // sema_down(relevant_child->parent_waiting_sema);
-
-  // return get_exit_status(relevant_child);
+  for (;;);
 }
 
 /* Free the current process's resources. */
