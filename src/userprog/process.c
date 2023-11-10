@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "threads/synch.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -45,7 +46,9 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);
+  // I believe the parent-child relationship should be established here
+  // list_push_back(&thread_current()->children_list, &child_thread->child_elem);
   return tid;
 }
 
@@ -144,7 +147,33 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  for (;;);
+  for (;;) {barrier();}
+
+  // struct thread *t = thread_current();
+
+  // struct thread *relevant_child;
+  // bool found = false;
+  // struct list_elem *e;
+  // for (e = list_begin(&t->children_list); e != list_end(&t->children_list); e = list_next(e))
+  // {
+  //   struct thread *child = list_entry(e, struct thread, child_elem);
+  //   if (child->tid == child_tid)
+  //   {
+  //     struct thread *relevant_child = child;
+  //     found = true;
+  //   }
+  // }
+
+  // if (!found || relevant_child->parent_is_waiting)
+  // {
+  //   return -1;
+  // }
+
+  // relevant_child->parent_is_waiting = true;
+
+  // sema_down(relevant_child->parent_waiting_sema);
+
+  // return get_exit_status(relevant_child);
 }
 
 /* Free the current process's resources. */

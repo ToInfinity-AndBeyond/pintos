@@ -74,14 +74,10 @@ syscall_handler (struct intr_frame *f) {
 
 void
 check_ptr(void *ptr) {
-  if (ptr == NULL){
-    thread_exit();
-  }
-  if (!is_user_vaddr(ptr)) {
-    thread_exit();
-  }
-  if (!pagedir_get_page(thread_current() -> pagedir, ptr)) {
-    free(ptr);
+  // Free resources and terminate
+  // if pointer is null / kernel vaddr / unmapped
+  if (ptr == NULL || is_kernel_vaddr(ptr) || 
+      !pagedir_get_page(thread_current() -> pagedir, ptr)) {
     thread_exit();
   }
 }
