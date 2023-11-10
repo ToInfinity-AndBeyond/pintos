@@ -103,7 +103,10 @@ struct thread
     struct list holding_locks;          /* List of locks the  thread is holding */
     struct list donation_list;          /* List of threads donating priority to this thread. */
     struct list_elem donation_elem;     /* Donation List element. */
+<<<<<<< HEAD
 
+=======
+>>>>>>> 67291609438043d0b762714a03e04456a4d070f5
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -111,8 +114,9 @@ struct thread
     struct list children_list;
     struct list_elem child_elem;
     int exit_status;
-    struct semaphore child_lock;
+    struct semaphore parent_waiting_sema;
     struct semaphore memory_lock;
+    bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
 #endif
 
     /* Owned by thread.c. */
