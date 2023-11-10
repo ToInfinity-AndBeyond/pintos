@@ -142,7 +142,24 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  for (;;);
+  struct thread *t = NULL;
+  int exit_status;
+
+  for (struct list_elem* elem = list_begin(&(thread_current()->children_list)); 
+  elem != list_end(&(thread_current()->children_list)); elem = list_next(elem))
+  {
+    t = list_entry(elem, struct thread, child_elem);
+    if (t->tid == child_tid)
+    {
+        sema_down(&(t->parent_waiting_sema));
+        exit_status = t->exit_status;
+        list_remove(&(t->child_elem));
+        sema_up(&(t->memory_lock));
+        return exit_status;
+    }
+  }
+  return -1;
+
 }
 
 /* Free the current process's resources. */
@@ -168,6 +185,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+    sema_up(&(cur->parent_waiting_sema));
+    sema_down(&(cur->memory_lock));
 }
 
 /* Sets up the CPU for running user code in the current
