@@ -103,10 +103,6 @@ struct thread
     struct list holding_locks;          /* List of locks the  thread is holding */
     struct list donation_list;          /* List of threads donating priority to this thread. */
     struct list_elem donation_elem;     /* Donation List element. */
-<<<<<<< HEAD
-
-=======
->>>>>>> 67291609438043d0b762714a03e04456a4d070f5
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
