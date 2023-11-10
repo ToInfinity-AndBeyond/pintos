@@ -109,6 +109,11 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct list children_list;
+    struct list_elem child_elem;
+    int exit_status;
+    struct semaphore child_lock;
+    struct semaphore memory_lock;
 #endif
 
     /* Owned by thread.c. */
