@@ -14,7 +14,7 @@
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
-void check_ptr(void *ptr);
+void check_ptr(void *esp);
 
 void halt(void);
 void exit(uint32_t *esp);
@@ -29,10 +29,9 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-
 static void
 syscall_handler (struct intr_frame *f) {
-  // int *syscall_args = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
+  int syscall_args[]= {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
   int syscall_no = *(int *) f->esp;
   uint32_t *esp = (uint32_t *)f->esp;
   check_ptr(esp);
@@ -75,8 +74,6 @@ syscall_handler (struct intr_frame *f) {
 
 void
 check_ptr(void *ptr) {
-  // Free resources and terminate
-  // if pointer is null / kernel vaddr / unmapped
   if (ptr == NULL || is_kernel_vaddr(ptr) || 
       !pagedir_get_page(thread_current() -> pagedir, ptr)) {
     thread_exit();
@@ -90,8 +87,14 @@ void halt(void)
 
 void exit(uint32_t *esp)
 {
-  int status = (int)esp[1];
+   int status = -1;
+    if (esp != -1)
+    {
+        status = (int)esp[1];
+    }
+
   printf("%s: exit(%d)\n", thread_name(), status);
+
   thread_current()->exit_status = status;
   thread_exit();  
 }
