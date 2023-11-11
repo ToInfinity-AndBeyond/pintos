@@ -39,6 +39,18 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+
+  /* Create a new child parent relation 
+     The current thread is the parent, and the created thread is the child */
+  struct relation *child_relation = malloc(sizeof(struct relation));
+  sema_init(&child_relation->sema, 0);
+  child_relation->parent = thread_current();
+  child_relation->parent_alive = true;
+  child_relation->child = NULL;
+  list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
+  child_relation->exit_status = -1; // Temporary variable
+
+
   char *thread_name;
   char *token;
   thread_name = strtok_r(file_name, " ", &token);
@@ -47,6 +59,9 @@ process_execute (const char *file_name)
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
+
+  // Wait for the child to sema_up when load is finished
+  sema_down(&child_relation->sema);
   
   return tid;
 }
@@ -112,12 +127,21 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (argv[0], &if_.eip, &if_.esp);
 
+
+  // After loading, allow the parent thread to run
+  sema_up(&thread_current()->parent_relation->sema);
+  thread_current()->parent_relation->child_alive = true;
+
+
   arg_stack(argv, argc, &if_.esp);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success) {
+    // If the loading failed, child is not alive (quit)
+    thread_current()->parent_relation->child_alive = false;
     thread_exit ();
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in

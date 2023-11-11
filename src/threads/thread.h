@@ -115,10 +115,24 @@ struct thread
     bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
 #endif
 
+    struct list children_relation_list;
+    struct relation *parent_relation;
+
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
     real recent_cpu;                    /* How much CPU time the thread has recently taken */
     unsigned magic;                     /* Detects stack overflow. */
+  };
+
+struct relation
+  {
+     struct thread *parent;
+     bool parent_alive;
+     struct thread *child;
+     bool child_alive;
+     int exit_status;
+     struct semaphore sema;
+     struct list_elem elem;
   };
 
 /* If false (default), use round-robin scheduler.

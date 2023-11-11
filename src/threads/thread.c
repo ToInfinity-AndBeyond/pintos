@@ -694,9 +694,25 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   t->waiting_lock = NULL;
   list_init(&t->donation_list);
 
+  list_init(&t->children_relation_list);
+
   t->nice = nice;
   t->recent_cpu = recent_cpu;
   t->magic = THREAD_MAGIC;
+
+
+  /* The current thread is the parent thread 
+     Thread t, which is to be created is the child thread
+     The beginning of the current thread's children_relation_list is the relation to this thread.
+     Thread main, which is the first to be initialized has no parent */
+  if(strcmp(name, "main") != 0) {
+    struct relation *parent_rel = list_entry(list_begin(&running_thread()->children_relation_list), struct relation, elem);
+    parent_rel->child = t;
+    t->parent_relation = parent_rel;
+  } else {
+    t->parent_relation = NULL;
+  }
+  
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
