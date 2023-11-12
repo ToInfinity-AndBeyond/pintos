@@ -704,7 +704,7 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
 
   #ifdef USERPROG
     sema_init(&(t -> parent_waiting_sema), 0);
-    sema_init(&(t -> memory_lock), 0);
+    sema_init(&(t -> memory_sema), 0);
     list_init(&(t->children_list));
     list_push_back(&(running_thread()->children_list), &(t->child_elem));
   #endif
@@ -714,6 +714,8 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   {
     t -> fd[i] = NULL;
   }
+  sema_init(&(t->load_sema), 0);
+  t->parent = running_thread();
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

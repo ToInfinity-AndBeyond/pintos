@@ -111,11 +111,13 @@ struct thread
     struct list_elem child_elem;
     int exit_status;
     struct semaphore parent_waiting_sema;
-    struct semaphore memory_lock;
+    struct semaphore memory_sema;
     bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
 #endif
 
    struct file *fd[128];
+   struct semaphore load_sema;
+   struct thread *parent;
 
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
