@@ -48,8 +48,10 @@ syscall_handler (struct intr_frame *f) {
       f->eax = exec((const char *)esp[1]);
       break;
     case SYS_CREATE:
+      f -> eax = create((const char *)esp[1], (unsigned)esp[2]);
       break;
     case SYS_REMOVE:
+      f -> eax = remove((const char *)esp[1]);
       break;
     case SYS_OPEN:
       break;
@@ -101,6 +103,24 @@ int wait(pid_t pid)
 pid_t exec(const char *cmd_line)
 {
   return process_execute(cmd_line);
+}
+
+bool create(const char *file, unsigned initial_size)
+{
+  if (file == NULL)
+  {
+    exit(-1);
+  }
+  return filesys_create(file, initial_size);
+}
+
+bool remove (const char *file)
+{
+  if (file == NULL) 
+  {
+    exit(-1);
+  }
+  return filesys_remove(file);
 }
 
 int write(int fd, const void *buffer, unsigned size)
