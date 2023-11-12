@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "fixed-point.h"
 #include "synch.h"
+#include "hash.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -113,12 +114,29 @@ struct thread
     struct semaphore parent_waiting_sema;
     struct semaphore memory_lock;
     bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
+    struct list children_relation_list;
+    // struct hash *children_relation_hash;
+    struct relation *parent_relation;
 #endif
 
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
     real recent_cpu;                    /* How much CPU time the thread has recently taken */
     unsigned magic;                     /* Detects stack overflow. */
+  };
+
+struct relation
+  {
+   //   struct thread *parent;
+     tid_t parent_tid;
+     bool parent_alive;
+   //   struct thread *child;
+     tid_t child_tid;
+     bool child_alive;
+     int exit_status;
+     struct semaphore sema;
+     struct list_elem elem;
+    //  struct hash_elem helem;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -178,5 +196,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+// unsigned relation_hash_hash_func(struct hash_elem *e, void *aux);
+// bool relation_hash_less_func(struct hash_elem *a, struct hash_elem *b, void *aux);
 
 #endif /* threads/thread.h */
