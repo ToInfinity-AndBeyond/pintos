@@ -115,6 +115,8 @@ struct thread
     bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
 #endif
 
+   struct file *fd[128];
+
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
     real recent_cpu;                    /* How much CPU time the thread has recently taken */
