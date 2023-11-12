@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "fixed-point.h"
 #include "synch.h"
+#include "hash.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -116,6 +117,7 @@ struct thread
 #endif
 
     struct list children_relation_list;
+    struct hash *children_relation_hash;
     struct relation *parent_relation;
 
     /* Owned by thread.c. */
@@ -135,6 +137,7 @@ struct relation
      int exit_status;
      struct semaphore sema;
      struct list_elem elem;
+     struct hash_elem helem;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -194,5 +197,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+unsigned relation_hash_hash_func(struct hash_elem *e, void *aux);
+bool relation_hash_less_func(struct hash_elem *a, struct hash_elem *b, void *aux);
 
 #endif /* threads/thread.h */

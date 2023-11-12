@@ -58,8 +58,12 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
+
+    child_relation->child_alive = false;
+    child_relation->exit_status = -1;
+  }
 
   // Wait for the child to sema_up when load is finished
   sema_down(&child_relation->sema);
@@ -167,43 +171,43 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  struct thread *t = NULL;
-  int exit_status;
-
-  for (struct list_elem* elem = list_begin(&(thread_current()->children_list)); 
-  elem != list_end(&(thread_current()->children_list)); elem = list_next(elem))
-  {
-    t = list_entry(elem, struct thread, child_elem);
-    if (t->tid == child_tid)
-    {
-        sema_down(&(t->parent_waiting_sema));
-        exit_status = t->exit_status;
-        list_remove(&(t->child_elem));
-        sema_up(&(t->memory_lock));
-        return exit_status;
-    }
-  }
-  return -1;
-
-  // struct relation *r = NULL;
+  // struct thread *t = NULL;
   // int exit_status;
 
-  // for (struct list_elem* elem = list_begin(&thread_current()->children_relation_list);
-  // elem != list_end(&thread_current()->children_relation_list); elem = list_next(elem))
+  // for (struct list_elem* elem = list_begin(&(thread_current()->children_list)); 
+  // elem != list_end(&(thread_current()->children_list)); elem = list_next(elem))
   // {
-  //   r = list_entry(elem, struct relation, elem);
-  //   printf("\n\n parent: %d, child: %d \n\n", thread_current()->tid, r->child_tid);
-  //   if (r->child_tid == child_tid) {
-  //     if (r->child_alive) {
-  //       sema_down(&r->sema);
-  //     }
-  //     exit_status = r->exit_status;
-  //     list_remove(&r->elem);
-  //     return exit_status;
+  //   t = list_entry(elem, struct thread, child_elem);
+  //   if (t->tid == child_tid)
+  //   {
+  //       sema_down(&(t->parent_waiting_sema));
+  //       exit_status = t->exit_status;
+  //       list_remove(&(t->child_elem));
+  //       sema_up(&(t->memory_lock));
+  //       return exit_status;
   //   }
   // }
-
   // return -1;
+
+  struct relation *r = NULL;
+  int exit_status;
+
+  for (struct list_elem* elem = list_begin(&thread_current()->children_relation_list);
+  elem != list_end(&thread_current()->children_relation_list); elem = list_next(elem))
+  {
+    r = list_entry(elem, struct relation, elem);
+    // printf("\n\n parent: %d, child: %d \n\n", thread_current()->tid, r->child_tid);
+    if (r->child_tid == child_tid) {
+      if (r->child_alive) {
+        sema_down(&r->sema);
+      }
+      exit_status = r->exit_status;
+      list_remove(&r->elem);
+      return exit_status;
+    }
+  }
+
+  return -1;
 }
 
 /* Free the current process's resources. */
