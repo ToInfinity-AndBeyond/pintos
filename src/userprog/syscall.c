@@ -56,6 +56,7 @@ syscall_handler (struct intr_frame *f) {
     case SYS_OPEN:
       break;
     case SYS_FILESIZE:
+      f->eax = filesize((int)esp[1]);
       break;
     case SYS_WAIT:
       f->eax = wait((pid_t)esp[1]);
@@ -67,8 +68,10 @@ syscall_handler (struct intr_frame *f) {
       f->eax = write((int)esp[1], (const void *)esp[2], (unsigned)esp[3]);
       break;
     case SYS_SEEK:
+      seek((int)esp[1], (unsigned)esp[2]);
       break;
     case SYS_TELL:
+      f->eax = tell((int)esp[1]);
       break;
     case SYS_CLOSE:
       break;
@@ -123,13 +126,9 @@ bool remove (const char *file)
   return filesys_remove(file);
 }
 
-int write(int fd, const void *buffer, unsigned size)
+int filesize (int fd)
 {
-  if (fd == 1) {
-    putbuf(buffer, size);
-    return size;
-  }
-  return -1;
+  return file_length(thread_current() -> fd[fd]);
 }
 
 int read(int fd, void *buffer, unsigned size)
@@ -143,6 +142,25 @@ int read(int fd, void *buffer, unsigned size)
   }
   return -1;
 }
+
+int write(int fd, const void *buffer, unsigned size)
+{
+  if (fd == 1) {
+    putbuf(buffer, size);
+    return size;
+  }
+  return -1;
+}
+
+void seek(int fd, unsigned position)
+{
+  file_seek(thread_current() -> fd[fd], position);
+}
+
+unsigned tell(int fd)
+{
+  return file_tell(thread_current() -> fd[fd]);
+} 
 
 
 
