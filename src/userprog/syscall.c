@@ -1,5 +1,5 @@
 #include "userprog/syscall.h"
-// #include "lib/user/syscall.h"
+#include "lib/user/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -17,11 +17,12 @@ void syscall_init(void);
 void check_ptr(void *esp);
 
 void halt(void);
-void exit(uint32_t *esp);
-int exec(uint32_t *esp);
-int wait(uint32_t *esp);
-int write(uint32_t *esp);
-int read(uint32_t *esp);
+void exit(int status);
+int exec(const char *cmd_line);
+int wait(int pid);
+int write(int fd, const void *buffer, unsigned size);
+int read(int fd, void *buffer, unsigned size);
+
 
 void
 syscall_init (void) 
@@ -41,10 +42,10 @@ syscall_handler (struct intr_frame *f) {
       halt();
       break;
     case SYS_EXIT:
-      exit(esp);
+      exit((int)esp[1]);
       break;
     case SYS_EXEC:
-      f->eax = exec(esp);
+      f->eax = exec((const char *)esp[1]);
       break;
     case SYS_CREATE:
       break;
@@ -55,13 +56,13 @@ syscall_handler (struct intr_frame *f) {
     case SYS_FILESIZE:
       break;
     case SYS_WAIT:
-      f->eax = wait(esp);
+      f->eax = wait((pid_t)esp[1]);
       break;
     case SYS_READ:
-      f->eax = read(esp);
+      f->eax = read((int)esp[1], (void *)esp[2], (unsigned)esp[3]);
       break;
     case SYS_WRITE:
-      f->eax = write(esp);
+      f->eax = write((int)esp[1], (const void *)esp[2], (unsigned)esp[3]);
       break;
     case SYS_SEEK:
       break;
@@ -85,35 +86,25 @@ void halt(void)
   shutdown_power_off();
 }
 
-void exit(uint32_t *esp)
+void exit(int status)
 {
-   int status = -1;
-    if (esp != -1)
-    {
-        status = (int)esp[1];
-    }
-
   printf("%s: exit(%d)\n", thread_name(), status);
-
   thread_current()->exit_status = status;
   thread_exit();  
 }
 
-int wait(uint32_t *esp)
+int wait(pid_t pid)
 {
-  return process_wait((int)esp[1]);
+  return process_wait(pid);
 }
 
-int exec(uint32_t *esp)
+pid_t exec(const char *cmd_line)
 {
-  return process_execute((char *)esp[1]);
+  return process_execute(cmd_line);
 }
 
-int write(uint32_t *esp)
+int write(int fd, const void *buffer, unsigned size)
 {
-  int fd = (int)esp[1];
-  void *buffer = (void *)esp[2];
-  unsigned size = (int)esp[3];
   if (fd == 1) {
     putbuf(buffer, size);
     return size;
@@ -121,11 +112,8 @@ int write(uint32_t *esp)
   return -1;
 }
 
-int read(uint32_t *esp)
+int read(int fd, void *buffer, unsigned size)
 {
-  int fd = (int)esp[1];
-  void *buffer = (void *)esp[2];
-  unsigned size = (int)esp[3];
   if (fd == 0) {
     int i;
     for (i = 0; input_getc() || i <= size; ++i) {
@@ -135,5 +123,6 @@ int read(uint32_t *esp)
   }
   return -1;
 }
+
 
 
