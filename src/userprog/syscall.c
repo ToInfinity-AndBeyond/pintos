@@ -54,6 +54,7 @@ syscall_handler (struct intr_frame *f) {
       f -> eax = remove((const char *)esp[1]);
       break;
     case SYS_OPEN:
+      f->eax = open((int)esp[1]);
       break;
     case SYS_FILESIZE:
       f->eax = filesize((int)esp[1]);
@@ -74,6 +75,7 @@ syscall_handler (struct intr_frame *f) {
       f->eax = tell((int)esp[1]);
       break;
     case SYS_CLOSE:
+      close ((int)esp[1]);
       break;
   }
 }
@@ -126,6 +128,32 @@ bool remove (const char *file)
   return filesys_remove(file);
 }
 
+int open (const char *file)
+{
+  if (file == NULL)
+  {
+    exit(-1);
+  }
+  struct file *fp = filesys_open(file);
+  if (fp == NULL)
+  {
+    return -1;
+  }
+
+  for (int i = 2; i < 128; i++)
+  {
+    if (thread_current() -> fd[i] == NULL)
+    {
+      if (!strcmp(thread_name(), file))
+      {
+        file_deny_write(fp);
+      }
+      thread_current() -> fd[i] = fp;
+    }
+    return i;
+  }
+}
+
 int filesize (int fd)
 {
   return file_length(thread_current() -> fd[fd]);
@@ -162,5 +190,14 @@ unsigned tell(int fd)
   return file_tell(thread_current() -> fd[fd]);
 } 
 
-
+void close(int fd)
+{
+  if (thread_current() -> fd[fd] == NULL)
+  {
+    exit(-1);
+  }
+  struct file *fp = thread_current() -> fd[fd];
+  thread_current() -> fd[fd] = NULL;
+  return file_close(fp);
+}
 
