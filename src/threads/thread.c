@@ -708,6 +708,12 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
     list_init(&(t->children_list));
     list_push_back(&(running_thread()->children_list), &(t->child_elem));
   #endif
+
+  /* Initialize file descriptor array */
+  for (int i = 0; i < 128; i++) 
+  {
+    t -> fd[i] = NULL;
+  }
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
