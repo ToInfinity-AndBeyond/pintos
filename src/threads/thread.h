@@ -114,11 +114,10 @@ struct thread
     struct semaphore parent_waiting_sema;
     struct semaphore memory_lock;
     bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
-#endif
-
     struct list children_relation_list;
-    struct hash *children_relation_hash;
+    // struct hash *children_relation_hash;
     struct relation *parent_relation;
+#endif
 
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
@@ -137,7 +136,7 @@ struct relation
      int exit_status;
      struct semaphore sema;
      struct list_elem elem;
-     struct hash_elem helem;
+    //  struct hash_elem helem;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -198,7 +197,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-unsigned relation_hash_hash_func(struct hash_elem *e, void *aux);
-bool relation_hash_less_func(struct hash_elem *a, struct hash_elem *b, void *aux);
+// unsigned relation_hash_hash_func(struct hash_elem *e, void *aux);
+// bool relation_hash_less_func(struct hash_elem *a, struct hash_elem *b, void *aux);
 
 #endif /* threads/thread.h */

@@ -171,23 +171,6 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  // struct thread *t = NULL;
-  // int exit_status;
-
-  // for (struct list_elem* elem = list_begin(&(thread_current()->children_list)); 
-  // elem != list_end(&(thread_current()->children_list)); elem = list_next(elem))
-  // {
-  //   t = list_entry(elem, struct thread, child_elem);
-  //   if (t->tid == child_tid)
-  //   {
-  //       sema_down(&(t->parent_waiting_sema));
-  //       exit_status = t->exit_status;
-  //       list_remove(&(t->child_elem));
-  //       sema_up(&(t->memory_lock));
-  //       return exit_status;
-  //   }
-  // }
-  // return -1;
 
   struct relation *r = NULL;
   int exit_status;
@@ -233,10 +216,30 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-    
+
+
+  if (&cur->parent_relation->parent_alive) {
     sema_up(&cur->parent_relation->sema);
-    sema_up(&(cur->parent_waiting_sema));
-    sema_down(&(cur->memory_lock));
+    cur->parent_relation->child_alive = false;
+  } else {
+    free(cur->parent_relation);
+  }
+
+  struct list_elem *e = list_begin(&cur->children_relation_list);
+  struct relation * r;
+  struct list_elem *e_next;
+  while(e != list_end(&cur->children_relation_list)) {
+    e_next = list_next(e);
+    r = list_entry(e, struct relation, elem);
+
+    if (r->child_alive) {
+      r->parent_alive = false;
+    } else {
+      free(r);
+    }
+
+    e = e_next;
+  }
 }
 
 /* Sets up the CPU for running user code in the current
