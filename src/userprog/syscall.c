@@ -97,6 +97,14 @@ void exit(int status)
 {
   printf("%s: exit(%d)\n", thread_name(), status);
   thread_current()->exit_status = status;
+
+  for (int i = 2; i < 128; i++)
+  {
+    if (thread_current() -> fd[i] != NULL)
+    {
+      file_close(thread_current() -> fd[i]);
+    }
+  }
   thread_exit();  
 }
 
@@ -168,14 +176,31 @@ int read(int fd, void *buffer, unsigned size)
     }
     return i;
   }
+  else if (fd >= 2 && fd < 128)
+  {
+    return file_read(thread_current() -> fd[fd], buffer, size);
+  }
+  else
+  {
+    exit(-1);
+  }
   return -1;
 }
 
 int write(int fd, const void *buffer, unsigned size)
 {
-  if (fd == 1) {
+  if (fd == 1) 
+  {
     putbuf(buffer, size);
     return size;
+  } 
+  else if (fd >= 2 && fd < 128)
+  {
+    return file_write(thread_current() -> fd[fd], buffer, size);
+  }
+  else
+  {
+    exit(-1);
   }
   return -1;
 }
