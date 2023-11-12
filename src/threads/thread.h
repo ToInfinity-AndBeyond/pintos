@@ -126,9 +126,11 @@ struct thread
 
 struct relation
   {
-     struct thread *parent;
+   //   struct thread *parent;
+     tid_t parent_tid;
      bool parent_alive;
-     struct thread *child;
+   //   struct thread *child;
+     tid_t child_tid;
      bool child_alive;
      int exit_status;
      struct semaphore sema;

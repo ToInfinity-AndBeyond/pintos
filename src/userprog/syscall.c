@@ -96,6 +96,7 @@ void exit(uint32_t *esp)
   printf("%s: exit(%d)\n", thread_name(), status);
 
   thread_current()->exit_status = status;
+  thread_current()->parent_relation->exit_status = status;
   thread_exit();  
 }
 

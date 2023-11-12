@@ -707,7 +707,7 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
      Thread main, which is the first to be initialized has no parent */
   if(strcmp(name, "main") != 0) {
     struct relation *parent_rel = list_entry(list_begin(&running_thread()->children_relation_list), struct relation, elem);
-    parent_rel->child = t;
+    parent_rel->child_tid = t->tid;
     t->parent_relation = parent_rel;
   } else {
     t->parent_relation = NULL;

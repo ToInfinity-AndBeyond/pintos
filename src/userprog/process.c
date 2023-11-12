@@ -44,9 +44,10 @@ process_execute (const char *file_name)
      The current thread is the parent, and the created thread is the child */
   struct relation *child_relation = malloc(sizeof(struct relation));
   sema_init(&child_relation->sema, 0);
-  child_relation->parent = thread_current();
+  child_relation->parent_tid = thread_current()->tid;
   child_relation->parent_alive = true;
-  child_relation->child = NULL;
+  // child_relation->child_tid = -1;
+  child_relation->child_alive = true;
   list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
   child_relation->exit_status = -1; // Temporary variable
 
@@ -184,6 +185,25 @@ process_wait (tid_t child_tid UNUSED)
   }
   return -1;
 
+  // struct relation *r = NULL;
+  // int exit_status;
+
+  // for (struct list_elem* elem = list_begin(&thread_current()->children_relation_list);
+  // elem != list_end(&thread_current()->children_relation_list); elem = list_next(elem))
+  // {
+  //   r = list_entry(elem, struct relation, elem);
+  //   printf("\n\n parent: %d, child: %d \n\n", thread_current()->tid, r->child_tid);
+  //   if (r->child_tid == child_tid) {
+  //     if (r->child_alive) {
+  //       sema_down(&r->sema);
+  //     }
+  //     exit_status = r->exit_status;
+  //     list_remove(&r->elem);
+  //     return exit_status;
+  //   }
+  // }
+
+  // return -1;
 }
 
 /* Free the current process's resources. */
@@ -209,6 +229,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+    
+    sema_up(&cur->parent_relation->sema);
     sema_up(&(cur->parent_waiting_sema));
     sema_down(&(cur->memory_lock));
 }
