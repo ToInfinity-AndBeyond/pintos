@@ -84,6 +84,8 @@ syscall_handler (struct intr_frame *f) {
     case SYS_CLOSE:
       close ((int)esp[1]);
       break;
+    default:
+      exit(-1);
   }
 }
 
