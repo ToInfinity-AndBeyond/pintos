@@ -51,9 +51,20 @@ process_execute (const char *file_name)
   }
   strlcpy(thread_name, file_name, i + 1);
 
+  struct file *file = filesys_open(thread_name);
+  if (file == NULL)
+  {
+      return -1;
+  }
+
+  if (file_length(file) <= PGSIZE)
+  {
+    return -1;
+  }
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
-  sema_down(&thread_current() -> load_sema);
+  //sema_down(&thread_current() -> load_sema);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -86,17 +97,23 @@ stack_element (void *write_dest, void *write_src, int size)
 static void 
 arg_stack(void *file_name, void **esp)
 {
-  char *argv[LOADER_ARGS_LEN / 2 + 1];
+  const int ARG_LIMIT = LOADER_ARGS_LEN / 2 + 1;
+  char *argv[ARG_LIMIT];
   char *token;
   char *save_ptr;
   int argc = 0;
+  int base_size = sizeof (char **) + sizeof (int) + sizeof (void *) + 3;
+  unsigned total_size = base_size;
 
   for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
   {
     argv[argc] = token;
     argc++;
+    if (argc >= ARG_LIMIT) {
+      exit(-1);
+    }
   }
-
+  
   for (int i = argc - 1; i >= 0; i--) {
     *esp = stack_element(*esp, argv[i], strlen(argv[i]) + 1);
     argv[i] = *esp;
@@ -141,11 +158,12 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (thread_name, &if_.eip, &if_.esp);
 
+
   arg_stack(file_name, &if_.esp);
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  sema_up(&thread_current()->parent->load_sema);
+  palloc_free_page(file_name);
+  //sema_up(&thread_current()->parent->load_sema);
   if (!success)
   {
     thread_current()->is_loaded = true;
