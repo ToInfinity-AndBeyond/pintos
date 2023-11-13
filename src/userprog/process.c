@@ -22,6 +22,7 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -39,15 +40,33 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char *thread_name;
-  char *token;
-  thread_name = strtok_r(file_name, " ", &token);
+  int i;
+  char thread_name[256];
+  for (i = 0; i < strlen(file_name) + 1; ++i)
+  {
+      if (file_name[i] == ' ')
+      {
+          break;
+      }
+  }
+  strlcpy(thread_name, file_name, i + 1);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
+  sema_down(&thread_current() -> load_sema);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
-  
+
+  struct thread* t = NULL;
+  for (struct list_elem* elem = list_begin(&thread_current()->children_list); 
+        elem != list_end(&thread_current()->children_list); elem = list_next(elem))
+  {
+    t = list_entry(elem, struct thread, child_elem);
+    if (t->is_loaded) 
+    {
+      return process_wait(tid);
+    }
+  }  
   return tid;
 }
 
@@ -65,8 +84,19 @@ stack_element (void *write_dest, void *write_src, int size)
 
 /* A function that sets up an iniitial stack. */
 static void 
-arg_stack(char **argv,int argc,void **esp)
+arg_stack(void *file_name, void **esp)
 {
+  char *argv[LOADER_ARGS_LEN / 2 + 1];
+  char *token;
+  char *save_ptr;
+  int argc = 0;
+
+  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
+  {
+    argv[argc] = token;
+    argc++;
+  }
+
   for (int i = argc - 1; i >= 0; i--) {
     *esp = stack_element(*esp, argv[i], strlen(argv[i]) + 1);
     argv[i] = *esp;
@@ -93,31 +123,34 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
-  char *argv[LOADER_ARGS_LEN / 2 + 1];
-  char *token;
-  char *save_ptr;
-  int argc = 0;
-
-
-  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
+  int i;
+  char thread_name[256];
+  for (i = 0; i < strlen(file_name) + 1; ++i)
   {
-    argv[argc] = token;
-    argc++;
+      if (file_name[i] == ' ')
+      {
+          break;
+      }
   }
+  strlcpy(thread_name, file_name, i + 1);
   
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (argv[0], &if_.eip, &if_.esp);
+  success = load (thread_name, &if_.eip, &if_.esp);
 
-  arg_stack(argv, argc, &if_.esp);
+  arg_stack(file_name, &if_.esp);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+  sema_up(&thread_current()->parent->load_sema);
+  if (!success)
+  {
+    thread_current()->is_loaded = true;
+    exit(-1);
+  } 
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -154,7 +187,7 @@ process_wait (tid_t child_tid UNUSED)
         sema_down(&(t->parent_waiting_sema));
         exit_status = t->exit_status;
         list_remove(&(t->child_elem));
-        sema_up(&(t->memory_lock));
+        sema_up(&(t->memory_sema));
         return exit_status;
     }
   }
@@ -186,7 +219,7 @@ process_exit (void)
       pagedir_destroy (pd);
     }
     sema_up(&(cur->parent_waiting_sema));
-    sema_down(&(cur->memory_lock));
+    sema_down(&(cur->memory_sema));
 }
 
 /* Sets up the CPU for running user code in the current

@@ -118,6 +118,7 @@ struct thread
    struct file *fd[128];
    struct semaphore load_sema;
    struct thread *parent;
+   bool is_loaded;
 
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
