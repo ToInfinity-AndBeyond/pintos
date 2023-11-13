@@ -55,10 +55,10 @@ syscall_handler (struct intr_frame *f) {
       f->eax = exec((const char *)esp[1]);
       break;
     case SYS_CREATE:
-      f -> eax = create((const char *)esp[1], (unsigned)esp[2]);
+      f->eax = create((const char *)esp[1], (unsigned)esp[2]);
       break;
     case SYS_REMOVE:
-      f -> eax = remove((const char *)esp[1]);
+      f->eax = remove((const char *)esp[1]);
       break;
     case SYS_OPEN:
       f->eax = open((int)esp[1]);
@@ -91,16 +91,16 @@ syscall_handler (struct intr_frame *f) {
 
 void check_pointer(uint32_t *esp, int args_num)
 {
-    if (!pagedir_get_page(thread_current() -> pagedir, esp))
+    if (!pagedir_get_page(thread_current()->pagedir, esp))
     {
       exit(-1);
     }
     for (int i = 0; i <= args_num; ++i)
     {
-        if (!is_user_vaddr((void *)esp[i]))
-        {
-            exit(-1);
-        }
+      if (!is_user_vaddr((void *)esp[i]))
+      {
+        exit(-1);
+      }
     }
 }
 

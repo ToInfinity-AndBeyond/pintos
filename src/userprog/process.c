@@ -57,17 +57,17 @@ process_execute (const char *file_name)
 
   for (i = 0; i < strlen(file_name) + 1; ++i)
   {
-      if (file_name[i] == ' ')
-      {
-          break;
-      }
+    if (file_name[i] == ' ')
+    {
+      break;
+    }
   }
   strlcpy(thread_name, file_name, i + 1);
 
   struct file *file = filesys_open(thread_name);
   if (file == NULL)
   {
-      return -1;
+    return -1;
   }
 
   if (file_length(file) <= PGSIZE)
@@ -155,10 +155,10 @@ start_process (void *file_name_)
   char thread_name[256];
   for (i = 0; i < strlen(file_name) + 1; ++i)
   {
-      if (file_name[i] == ' ')
-      {
-          break;
-      }
+    if (file_name[i] == ' ')
+    {
+      break;
+    }
   }
   strlcpy(thread_name, file_name, i + 1);
   
@@ -266,13 +266,16 @@ process_exit (void)
   struct list_elem *e = list_begin(&cur->children_relation_list);
   struct relation * r;
   struct list_elem *e_next;
-  while(e != list_end(&cur->children_relation_list)) {
+  while(e != list_end(&cur->children_relation_list))
+  {
     e_next = list_next(e);
     r = list_entry(e, struct relation, elem);
 
     if (r->child_alive) {
       r->parent_alive = false;
-    } else {
+    }
+    else
+    {
       free(r);
     }
 
