@@ -287,6 +287,11 @@ thread_create(const char *name, int priority,
   init_thread(t, name, priority, cur->nice, cur->recent_cpu);
   tid = t->tid = allocate_tid();
 
+  // child_tid should be assigned after allocate_tid
+  struct relation *parent_rel = list_entry(list_begin(&running_thread()->children_relation_list), struct relation, elem);
+  parent_rel->child_tid = t->tid;
+  t->parent_relation = parent_rel;
+
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack'
      member cannot be observed. */
@@ -660,6 +665,18 @@ is_thread(struct thread *t)
   return t != NULL && t->magic == THREAD_MAGIC;
 }
 
+// unsigned relation_hash_hash_func(struct hash_elem *e, void *aux) {
+//   struct relation *r = hash_entry(e, struct relation, helem);
+//   // The hash table only contains children, so no need to consider the parent
+//   return r->child_tid; 
+// }
+
+// bool relation_hash_less_func(struct hash_elem *a, struct hash_elem *b, void *aux) {
+//   struct relation *ra = hash_entry(a, struct relation, helem);
+//   struct relation *rb = hash_entry(b, struct relation, helem);
+//   return ra->child_tid < rb->child_tid;
+// }
+
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
@@ -697,6 +714,22 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   t->nice = nice;
   t->recent_cpu = recent_cpu;
   t->magic = THREAD_MAGIC;
+
+  list_init(&t->children_relation_list);
+  // hash_init(&t->children_relation_hash, );
+
+  /* The current thread is the parent thread 
+     Thread t, which is to be created is the child thread
+     The beginning of the current thread's children_relation_list is the relation to this thread.
+     Thread main, which is the first to be initialized has no parent */
+  // if(strcmp(name, "main") != 0) {
+  //   struct relation *parent_rel = list_entry(list_begin(&running_thread()->children_relation_list), struct relation, elem);
+  //   parent_rel->child_tid = t->tid;
+  //   t->parent_relation = parent_rel;
+  // } else {
+  //   t->parent_relation = NULL;
+  // }
+  
 
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);

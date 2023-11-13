@@ -40,8 +40,35 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+
+  /* Create a new child parent relation 
+     The current thread is the parent, and the created thread is the child */
+  struct relation *child_relation = malloc(sizeof(struct relation));
+  sema_init(&child_relation->sema, 0);
+  child_relation->parent_tid = thread_current()->tid;
+  child_relation->parent_alive = true;
+  // child_relation->child_tid = -1;
+  child_relation->child_alive = true;
+  list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
+  child_relation->exit_status = -1; // Temporary variable
+
+
+
+  /* Create a new child parent relation 
+     The current thread is the parent, and the created thread is the child */
+  struct relation *child_relation = malloc(sizeof(struct relation));
+  sema_init(&child_relation->sema, 0);
+  child_relation->parent_tid = thread_current()->tid;
+  child_relation->parent_alive = true;
+  // child_relation->child_tid = -1;
+  child_relation->child_alive = true;
+  list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
+  child_relation->exit_status = -1; // Temporary variable
+
+
   int i;
   char thread_name[256];
+
   for (i = 0; i < strlen(file_name) + 1; ++i)
   {
       if (file_name[i] == ' ')
@@ -53,20 +80,16 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
-  sema_down(&thread_current() -> load_sema);
-  if (tid == TID_ERROR)
+  if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
 
-  struct thread* t = NULL;
-  for (struct list_elem* elem = list_begin(&thread_current()->children_list); 
-        elem != list_end(&thread_current()->children_list); elem = list_next(elem))
-  {
-    t = list_entry(elem, struct thread, child_elem);
-    if (t->is_loaded) 
-    {
-      return process_wait(tid);
-    }
-  }  
+    child_relation->child_alive = false;
+    child_relation->exit_status = -1;
+  }
+
+  // Wait for the child to sema_up when load is finished
+  sema_down(&child_relation->sema);
+  
   return tid;
 }
 
@@ -141,16 +164,22 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (thread_name, &if_.eip, &if_.esp);
 
+
+  // After loading, allow the parent thread to run
+  sema_up(&thread_current()->parent_relation->sema);
+  thread_current()->parent_relation->child_alive = true;
+
+
   arg_stack(file_name, &if_.esp);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  sema_up(&thread_current()->parent->load_sema);
-  if (!success)
-  {
-    thread_current()->is_loaded = true;
-    exit(-1);
-  } 
+  if (!success) {
+    // If the loading failed, child is not alive (quit)
+    thread_current()->parent_relation->child_alive = false;
+    thread_exit ();
+    // exit(-1);
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -175,24 +204,26 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  struct thread *t = NULL;
+
+  struct relation *r = NULL;
   int exit_status;
 
-  for (struct list_elem* elem = list_begin(&(thread_current()->children_list)); 
-  elem != list_end(&(thread_current()->children_list)); elem = list_next(elem))
+  for (struct list_elem* elem = list_begin(&thread_current()->children_relation_list);
+  elem != list_end(&thread_current()->children_relation_list); elem = list_next(elem))
   {
-    t = list_entry(elem, struct thread, child_elem);
-    if (t->tid == child_tid)
-    {
-        sema_down(&(t->parent_waiting_sema));
-        exit_status = t->exit_status;
-        list_remove(&(t->child_elem));
-        sema_up(&(t->memory_sema));
-        return exit_status;
+    r = list_entry(elem, struct relation, elem);
+    // printf("\n\n parent: %d, child: %d \n\n", thread_current()->tid, r->child_tid);
+    if (r->child_tid == child_tid) {
+      if (r->child_alive) {
+        sema_down(&r->sema);
+      }
+      exit_status = r->exit_status;
+      list_remove(&r->elem);
+      return exit_status;
     }
   }
-  return -1;
 
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -218,8 +249,30 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-    sema_up(&(cur->parent_waiting_sema));
-    sema_down(&(cur->memory_sema));
+
+
+  if (&cur->parent_relation->parent_alive) {
+    sema_up(&cur->parent_relation->sema);
+    cur->parent_relation->child_alive = false;
+  } else {
+    free(cur->parent_relation);
+  }
+
+  struct list_elem *e = list_begin(&cur->children_relation_list);
+  struct relation * r;
+  struct list_elem *e_next;
+  while(e != list_end(&cur->children_relation_list)) {
+    e_next = list_next(e);
+    r = list_entry(e, struct relation, elem);
+
+    if (r->child_alive) {
+      r->parent_alive = false;
+    } else {
+      free(r);
+    }
+
+    e = e_next;
+  }
 }
 
 /* Sets up the CPU for running user code in the current
