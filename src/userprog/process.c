@@ -52,20 +52,6 @@ process_execute (const char *file_name)
   list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
   child_relation->exit_status = -1; // Temporary variable
 
-
-
-  /* Create a new child parent relation 
-     The current thread is the parent, and the created thread is the child */
-  struct relation *child_relation = malloc(sizeof(struct relation));
-  sema_init(&child_relation->sema, 0);
-  child_relation->parent_tid = thread_current()->tid;
-  child_relation->parent_alive = true;
-  // child_relation->child_tid = -1;
-  child_relation->child_alive = true;
-  list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
-  child_relation->exit_status = -1; // Temporary variable
-
-
   int i;
   char thread_name[256];
 
