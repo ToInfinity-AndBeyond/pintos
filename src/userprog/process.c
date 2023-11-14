@@ -171,15 +171,15 @@ start_process (void *file_name_)
 
 
   // After loading, allow the parent thread to run
-  sema_up(&thread_current()->parent_relation->sema);
   thread_current()->parent_relation->child_alive = true;
+  sema_up(&thread_current()->parent_relation->sema);
 
 
   arg_stack(file_name, &if_.esp);
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
   if (!success) {
+    palloc_free_page (file_name);
     // If the loading failed, child is not alive (quit)
     thread_current()->parent_relation->child_alive = false;
     // thread_exit ();
