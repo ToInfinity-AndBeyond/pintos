@@ -10,6 +10,7 @@
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
 #include "devices/input.h"
+#include <string.h>
 
 struct lock filesys_lock;
 static void syscall_handler (struct intr_frame *f);
@@ -113,7 +114,6 @@ void halt(void)
 void exit(int status)
 {
   printf("%s: exit(%d)\n", thread_name(), status);
-  thread_current()->exit_status = status;
   thread_current()->parent_relation->exit_status = status;
 
   for (int i = 2; i < 128; i++)

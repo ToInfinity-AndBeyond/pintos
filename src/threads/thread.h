@@ -105,18 +105,13 @@ struct thread
     struct list donation_list;          /* List of threads donating priority to this thread. */
     struct list_elem donation_elem;     /* Donation List element. */
 
+
+    struct list children_relation_list;
+    struct relation *parent_relation;
+    
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct list children_list;
-    struct list_elem child_elem;
-    int exit_status;
-    struct semaphore parent_waiting_sema;
-    struct semaphore memory_sema;
-    bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
-    struct list children_relation_list;
-    // struct hash *children_relation_hash;
-    struct relation *parent_relation;
 #endif
 
    struct file *fd[128];
