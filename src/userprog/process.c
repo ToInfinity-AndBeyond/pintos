@@ -224,6 +224,7 @@ process_wait (tid_t child_tid UNUSED)
       }
       exit_status = r->exit_status;
       list_remove(&r->elem);
+      free(r);
       return exit_status;
     }
   }
