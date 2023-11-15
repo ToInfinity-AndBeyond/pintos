@@ -75,12 +75,12 @@ process_execute (const char *file_name)
     return -1;
   }
 
+  palloc_free_page (fn_copy);
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   //sema_down(&thread_current() -> load_sema);
   if (tid == TID_ERROR) {
-    palloc_free_page (fn_copy);
-
     child_relation->child_alive = false;
     child_relation->exit_status = -1;
   }
@@ -257,7 +257,7 @@ process_exit (void)
     }
 
 
-  if (&cur->parent_relation->parent_alive) {
+  if (cur->parent_relation->parent_alive) {
     sema_up(&cur->parent_relation->sema);
     cur->parent_relation->child_alive = false;
   } else {
@@ -273,6 +273,7 @@ process_exit (void)
     r = list_entry(e, struct relation, elem);
 
     if (r->child_alive) {
+      // r->child->parent_relation = NULL;
       r->parent_alive = false;
     }
     else
