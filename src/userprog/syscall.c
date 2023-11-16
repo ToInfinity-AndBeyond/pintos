@@ -10,7 +10,6 @@
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
 #include "devices/input.h"
-#include <string.h>
 
 struct lock filesys_lock;
 static void syscall_handler (struct intr_frame *f);
@@ -34,17 +33,21 @@ void check_pointer(uint32_t *esp, int args_num);
 void
 syscall_init (void) 
 {
+  /* When syscall is initialised, lock_init. */
   lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+/* Using swtich - case, invokes a system call functions. */
 static void
 syscall_handler (struct intr_frame *f) {
+  /* Array used to store the number of syscall's arguments*/
   int syscall_args[]= {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
   int syscall_no = *(int *) f->esp;
-  uint32_t *esp = (uint32_t *)f->esp;
+  uint32_t *esp = (uint32_t *)f->esp; // stack pointer esp
   check_pointer(esp, syscall_args[syscall_no]);
 
+  /* Each system call function is invoked by referencing esp as a parameter. */
   switch (syscall_no) {
     case SYS_HALT: 
       halt();
@@ -56,10 +59,10 @@ syscall_handler (struct intr_frame *f) {
       f->eax = exec((const char *)esp[1]);
       break;
     case SYS_CREATE:
-      f->eax = create((const char *)esp[1], (unsigned)esp[2]);
+      f -> eax = create((const char *)esp[1], (unsigned)esp[2]);
       break;
     case SYS_REMOVE:
-      f->eax = remove((const char *)esp[1]);
+      f -> eax = remove((const char *)esp[1]);
       break;
     case SYS_OPEN:
       f->eax = open((int)esp[1]);
@@ -90,21 +93,21 @@ syscall_handler (struct intr_frame *f) {
   }
 }
 
+/* Checks if virtual address is correct*/
 void check_pointer(uint32_t *esp, int args_num)
 {
-    if (!pagedir_get_page(thread_current()->pagedir, esp))
+    if (!pagedir_get_page(thread_current() -> pagedir, esp))
     {
       exit(-1);
     }
     for (int i = 0; i <= args_num; ++i)
     {
-      if (!is_user_vaddr((void *)esp[i]))
-      {
-        exit(-1);
-      }
+        if (!is_user_vaddr((void *)esp[i]))
+        {
+            exit(-1);
+        }
     }
 }
-
 
 void halt(void)
 {
@@ -114,8 +117,11 @@ void halt(void)
 void exit(int status)
 {
   printf("%s: exit(%d)\n", thread_name(), status);
-  thread_current()->parent_relation->exit_status = status;
+  struct relation *rel = thread_current()-> parent_relation;
+  /* Set exit status. */
+  thread_current()->parent_relation->exit_status = status;  
 
+  /* In order to prevent memory leak, closed all the files using file_close */
   for (int i = 2; i < 128; i++)
   {
     if (thread_current() -> fd[i] != NULL)
@@ -142,6 +148,8 @@ bool create(const char *file, unsigned initial_size)
   {
     exit(-1);
   }
+  /* lock_acquire and lock_released are used before and after 
+     file operation is performed, respectively*/
   lock_acquire(&filesys_lock);
   bool is_created = filesys_create(file, initial_size);
   lock_release(&filesys_lock);
@@ -150,10 +158,12 @@ bool create(const char *file, unsigned initial_size)
 
 bool remove (const char *file)
 {
+  /* If file name is null, terminate. */
   if (file == NULL) 
   {
     exit(-1);
   }
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   bool is_removed = filesys_remove(file);
   lock_release(&filesys_lock);
@@ -162,10 +172,12 @@ bool remove (const char *file)
 
 int open (const char *file)
 {
+  /* If file name is null, terminate. */
   if (file == NULL)
   {
     exit(-1);
   }
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   struct file *fp = filesys_open(file);
   lock_release(&filesys_lock);
@@ -178,6 +190,7 @@ int open (const char *file)
   {
     if (thread_current() -> fd[i] == NULL)
     {
+      /* Prevent writing to the current thread */
       if (!strcmp(thread_name(), file))
       {
         file_deny_write(fp);
@@ -191,6 +204,7 @@ int open (const char *file)
 
 int filesize (int fd)
 {
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   int file_size = file_length(thread_current() -> fd[fd]);
   lock_release(&filesys_lock);
@@ -244,6 +258,7 @@ int write(int fd, const void *buffer, unsigned size)
 
 void seek(int fd, unsigned position)
 {
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   file_seek(thread_current() -> fd[fd], position);
   lock_release(&filesys_lock);
@@ -251,6 +266,7 @@ void seek(int fd, unsigned position)
 
 unsigned tell(int fd)
 {
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   unsigned tell_val = file_tell(thread_current() -> fd[fd]);
   lock_release(&filesys_lock);
@@ -261,6 +277,7 @@ void close(int fd)
 {
   struct file *fp = thread_current() -> fd[fd];
   thread_current() -> fd[fd] = NULL;
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   file_close(fp);
   lock_release(&filesys_lock);

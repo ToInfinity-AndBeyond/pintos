@@ -133,8 +133,10 @@ struct relation
    //   struct thread *child;
      tid_t child_tid;
      bool child_alive;
+     bool is_loaded;
      int exit_status;
      struct semaphore sema;
+     struct semaphore load_sema;
      struct list_elem elem;
     //  struct hash_elem helem;
   };

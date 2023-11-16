@@ -75,12 +75,11 @@ process_execute (const char *file_name)
     return -1;
   }
 
-  palloc_free_page (fn_copy);
-
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
   //sema_down(&thread_current() -> load_sema);
   if (tid == TID_ERROR) {
+    palloc_free_page (fn_copy);
     child_relation->child_alive = false;
     child_relation->exit_status = -1;
   }
