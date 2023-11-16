@@ -41,9 +41,10 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) {
   int syscall_args[]= {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
-  int syscall_no = *(int *) f->esp;
   uint32_t *esp = (uint32_t *)f->esp;
-  check_pointer(esp, syscall_args[syscall_no]);
+  check_esp(esp);
+  int syscall_no = *(int *) f->esp;
+  check_args(esp, syscall_args[syscall_no]);
 
   switch (syscall_no) {
     case SYS_HALT: 
@@ -90,12 +91,15 @@ syscall_handler (struct intr_frame *f) {
   }
 }
 
-void check_pointer(uint32_t *esp, int args_num)
-{
+void check_esp(uint32_t *esp) {
     if (!pagedir_get_page(thread_current()->pagedir, esp))
     {
       exit(-1);
     }
+}
+
+void check_args(uint32_t *esp, int args_num)
+{
     for (int i = 0; i <= args_num; ++i)
     {
       if (!is_user_vaddr((void *)esp[i]))
@@ -105,6 +109,12 @@ void check_pointer(uint32_t *esp, int args_num)
     }
 }
 
+void check_user_ptr(void *ptr) {
+  if (ptr == NULL || !is_user_vaddr(ptr) || !pagedir_get_page(thread_current()->pagedir, ptr))
+  {
+    exit(-1);
+  }
+}
 
 void halt(void)
 {
@@ -133,15 +143,13 @@ int wait(pid_t pid)
 
 pid_t exec(const char *cmd_line)
 {
+  check_user_ptr(cmd_line);
   return process_execute(cmd_line);
 }
 
 bool create(const char *file, unsigned initial_size)
 {
-  if (file == NULL)
-  {
-    exit(-1);
-  }
+  check_user_ptr(file);
   lock_acquire(&filesys_lock);
   bool is_created = filesys_create(file, initial_size);
   lock_release(&filesys_lock);
@@ -150,10 +158,7 @@ bool create(const char *file, unsigned initial_size)
 
 bool remove (const char *file)
 {
-  if (file == NULL) 
-  {
-    exit(-1);
-  }
+  check_user_ptr(file);
   lock_acquire(&filesys_lock);
   bool is_removed = filesys_remove(file);
   lock_release(&filesys_lock);
@@ -162,10 +167,7 @@ bool remove (const char *file)
 
 int open (const char *file)
 {
-  if (file == NULL)
-  {
-    exit(-1);
-  }
+  check_user_ptr(file);
   lock_acquire(&filesys_lock);
   struct file *fp = filesys_open(file);
   lock_release(&filesys_lock);
@@ -221,6 +223,7 @@ int read(int fd, void *buffer, unsigned size)
 
 int write(int fd, const void *buffer, unsigned size)
 {
+  check_user_ptr(buffer);
   if (fd == 1) 
   {
     lock_acquire(&filesys_lock);
@@ -259,6 +262,9 @@ unsigned tell(int fd)
 
 void close(int fd)
 {
+  if (fd < 2 || fd >= 128) {
+    exit(-1);
+  }
   struct file *fp = thread_current() -> fd[fd];
   thread_current() -> fd[fd] = NULL;
   lock_acquire(&filesys_lock);

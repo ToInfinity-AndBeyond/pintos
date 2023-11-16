@@ -15,6 +15,7 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
@@ -30,7 +31,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy;
+    char *fn_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -47,12 +48,11 @@ process_execute (const char *file_name)
   sema_init(&child_relation->sema, 0);
   child_relation->parent_tid = thread_current()->tid;
   child_relation->parent_alive = true;
-  // child_relation->child_tid = -1;
   child_relation->child_alive = true;
   list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
   child_relation->exit_status = -1; // Temporary variable
 
-  int i;
+  size_t i;
   char thread_name[256];
 
   for (i = 0; i < strlen(file_name) + 1; ++i)
@@ -77,19 +77,16 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
-  //sema_down(&thread_current() -> load_sema);
+    //sema_down(&thread_current() -> load_sema);
   if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
 
     child_relation->child_alive = false;
     child_relation->exit_status = -1;
   }
-
   // Wait for the child to sema_up when load is finished
   sema_down(&child_relation->sema);
-  
-  return tid;
-
+  return list_entry(list_front(&thread_current()->children_relation_list), struct relation, elem)->child_tid;
 }
 
 void *
@@ -169,22 +166,21 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (thread_name, &if_.eip, &if_.esp);
 
+  /* If load failed, quit. */
+  if (!success) { 
+    palloc_free_page (file_name);
+    // If the loading failed, child is not alive (quit)
+    thread_current()->parent_relation->child_alive = false;
+    thread_current()->parent_relation->child_tid = -1;
+    thread_exit();
+  }
 
   // After loading, allow the parent thread to run
   thread_current()->parent_relation->child_alive = true;
   sema_up(&thread_current()->parent_relation->sema);
 
-
   arg_stack(file_name, &if_.esp);
-
-  /* If load failed, quit. */
-  if (!success) {
-    palloc_free_page (file_name);
-    // If the loading failed, child is not alive (quit)
-    thread_current()->parent_relation->child_alive = false;
-    // thread_exit ();
-    exit(-1);
-  }
+  palloc_free_page (file_name);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -255,9 +251,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-
-
-  if (&cur->parent_relation->parent_alive) {
+  
+  if (cur->parent_relation->parent_alive) {
     sema_up(&cur->parent_relation->sema);
     cur->parent_relation->child_alive = false;
   } else {
