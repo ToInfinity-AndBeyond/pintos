@@ -46,6 +46,7 @@ process_execute (const char *file_name)
      The current thread is the parent, and the created thread is the child */
   struct relation *child_relation = malloc(sizeof(struct relation));
   sema_init(&child_relation->sema, 0);
+  lock_init(&child_relation->relation_lock);
   child_relation->parent_tid = thread_current()->tid;
   child_relation->parent_alive = true;
   child_relation->child_alive = true;
@@ -80,7 +81,8 @@ process_execute (const char *file_name)
   }
   // Wait for the child to sema_up when load is finished
   sema_down(&child_relation->sema);
-  return list_entry(&child_relation->elem, struct relation, elem)->child_tid;
+
+  return child_relation->child_tid;
 }
 
 void *
@@ -158,12 +160,13 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (thread_name, &if_.eip, &if_.esp);
 
+  struct relation * parent_relation = thread_current()->parent_relation;
   /* If load failed, quit. */
   if (!success) { 
     palloc_free_page (file_name);
     // If the loading failed, child is not alive (quit)
-    thread_current()->parent_relation->child_alive = false;
-    thread_current()->parent_relation->child_tid = -1;
+    parent_relation->child_alive = false;
+    parent_relation->child_tid = -1;
     thread_exit();
   }
 
@@ -197,7 +200,6 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-
   struct relation *r = NULL;
   int exit_status;
 
@@ -211,7 +213,6 @@ process_wait (tid_t child_tid UNUSED)
       }
       exit_status = r->exit_status;
       list_remove(&r->elem);
-      free(r);
       return exit_status;
     }
   }
@@ -243,12 +244,14 @@ process_exit (void)
       pagedir_destroy (pd);
     }
   
+  lock_acquire(&cur->parent_relation->relation_lock);
   if (cur->parent_relation->parent_alive) {
     sema_up(&cur->parent_relation->sema);
     cur->parent_relation->child_alive = false;
   } else {
     free(cur->parent_relation);
   }
+  lock_release(&cur->parent_relation->relation_lock);
 
   struct list_elem *e = list_begin(&cur->children_relation_list);
   struct relation * r;
@@ -258,11 +261,14 @@ process_exit (void)
     e_next = list_next(e);
     r = list_entry(e, struct relation, elem);
 
+    lock_acquire(&r->relation_lock);
     if (r->child_alive) {
       r->parent_alive = false;
+      lock_release(&r->relation_lock);
     }
     else
     {
+      lock_release(&r->relation_lock);
       free(r);
     }
 
