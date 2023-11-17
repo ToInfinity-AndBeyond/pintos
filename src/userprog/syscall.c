@@ -267,7 +267,7 @@ unsigned tell(int fd)
 
 void close(int fd)
 {
-  if (fd < 2 || fd >= 128) {
+  if (fd < FD_BEGIN || fd >= FD_END) {
     exit(-1);
   }
   struct file *fp = thread_current() -> fd[fd];
