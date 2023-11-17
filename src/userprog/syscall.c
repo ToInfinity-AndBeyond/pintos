@@ -303,9 +303,12 @@ uint32_t sys_tell (uint32_t *esp)
 
 uint32_t sys_close (uint32_t *esp)
 {
+<<<<<<< src/userprog/syscall.c
   int fd = (int) esp[1];
-
-  if (fd < 2 || fd >= 128) {
+  
+=======
+  if (fd < FD_BEGIN || fd >= FD_END) {
+>>>>>>> src/userprog/syscall.c
     exit(-1);
   }
   struct file *fp = thread_current() -> fd[fd];
