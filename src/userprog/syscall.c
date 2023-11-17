@@ -304,8 +304,9 @@ uint32_t sys_tell (uint32_t *esp)
 uint32_t sys_close (uint32_t *esp)
 {
   int fd = (int) esp[1];
-  
-  if (fd < FD_BEGIN || fd >= FD_END) {
+
+  if (fd < FD_BEGIN || fd >= FD_END) 
+  {
     exit(EXIT_ERROR);
   }
   struct file *fp = thread_current() -> fd[fd];
