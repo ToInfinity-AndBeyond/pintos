@@ -119,20 +119,7 @@ uint32_t sys_halt (uint32_t *esp UNUSED)
 uint32_t sys_exit (uint32_t *esp)
 {
   int status = (int) esp[1];
-
-  printf("%s: exit(%d)\n", thread_name(), status);
-  /* Set exit status. */
-  thread_current()->parent_relation->exit_status = status;  
-
-  /* In order to prevent memory leak, closed all the files using file_close */
-  for (int i = FD_BEGIN; i < FD_END; i++)
-  {
-    if (thread_current() -> fd[i] != NULL)
-    {
-      file_close(thread_current() -> fd[i]);
-    }
-  }
-  thread_exit();  
+  exit(status);
 }
 
 uint32_t sys_wait (uint32_t *esp)

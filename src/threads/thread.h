@@ -104,15 +104,13 @@ struct thread
     struct list donation_list;          /* List of threads donating priority to this thread. */
     struct list_elem donation_elem;     /* Donation List element. */
 
-    
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct list children_relation_list; /* List of relations to the children. */
-    struct relation *parent_relation; /* Relation to its parent. */
+    struct relation *parent_relation;   /* Relation to its parent. */
+    struct file *fd[128];               /* Array of file descriptors */
 #endif
-
-   struct file *fd[128];
 
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
