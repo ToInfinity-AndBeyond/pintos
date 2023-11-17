@@ -10,6 +10,12 @@
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
 #include "devices/input.h"
+#define STDIN 0
+#define STDOUT 1
+#define STDERR 2
+#define FD_BEGIN 3
+#define FD_END 128
+
 
 struct lock filesys_lock;
 static void syscall_handler (struct intr_frame *f);
@@ -186,7 +192,7 @@ int open (const char *file)
     return -1;
   }
 
-  for (int i = 2; i < 128; i++)
+  for (int i = FD_BEGIN; i < FD_END; i++)
   {
     if (thread_current() -> fd[i] == NULL)
     {
@@ -213,14 +219,14 @@ int filesize (int fd)
 
 int read(int fd, void *buffer, unsigned size)
 {
-  if (fd == 0) {
+  if (fd == STDIN) {
     int i;
     for (i = 0; input_getc() || i <= size; ++i) {
 
     }
     return i;
   }
-  else if (fd >= 2 && fd < 128)
+  else if (fd >= FD_BEGIN && fd < FD_END)
   {
     lock_acquire(&filesys_lock);
     int read_val = file_read(thread_current() -> fd[fd], buffer, size);
@@ -235,14 +241,14 @@ int read(int fd, void *buffer, unsigned size)
 
 int write(int fd, const void *buffer, unsigned size)
 {
-  if (fd == 1) 
+  if (fd == STDOUT) 
   {
     lock_acquire(&filesys_lock);
     putbuf(buffer, size);
     lock_release(&filesys_lock);
     return size;
   } 
-  else if (fd >= 2 && fd < 128)
+  else if (fd >= FD_BEGIN && fd < FD_END)
   {
     lock_acquire(&filesys_lock);
     int write_val = file_write(thread_current() -> fd[fd], buffer, size);
@@ -282,3 +288,4 @@ void close(int fd)
   file_close(fp);
   lock_release(&filesys_lock);
 }
+

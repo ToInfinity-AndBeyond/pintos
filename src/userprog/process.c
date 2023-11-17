@@ -70,10 +70,10 @@ process_execute (const char *file_name)
     return -1;
   }
 
-  if (file_length(file) <= PGSIZE)
-  {
-    return -1;
-  }
+  // if (file_length(file) <= PGSIZE)
+  // {
+  //   return -1;
+  // }
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
