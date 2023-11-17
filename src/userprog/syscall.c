@@ -36,9 +36,6 @@ unsigned tell(int fd);
 void close(int fd);
 
 void check_pointer(uint32_t *esp, int args_num);
-void check_esp(void *esp);
-void check_args(uint32_t *esp, int args_num);
-void check_user_ptr(const void *ptr);
 
 void
 syscall_init (void) 
@@ -110,17 +107,6 @@ void check_pointer(uint32_t *esp, int args_num)
     {
       exit(-1);
     }
-    for (int i = 0; i <= args_num; ++i)
-    {
-        if (!is_user_vaddr((void *)esp[i]))
-        {
-            exit(-1);
-        }
-    }
-}
-
-void check_args(uint32_t *esp, int args_num)
-{
     for (int i = 0; i <= args_num; ++i)
     {
         if (!is_user_vaddr((void *)esp[i]))
