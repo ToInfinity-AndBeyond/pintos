@@ -128,7 +128,7 @@ void exit(int status)
   thread_current()->parent_relation->exit_status = status;  
 
   /* In order to prevent memory leak, closed all the files using file_close */
-  for (int i = 2; i < 128; i++)
+  for (int i = FD_BEGIN; i < FD_END; i++)
   {
     if (thread_current() -> fd[i] != NULL)
     {
