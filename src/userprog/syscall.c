@@ -1,6 +1,7 @@
 #include "userprog/syscall.h"
 #include "lib/user/syscall.h"
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -109,6 +110,13 @@ void check_pointer(uint32_t *esp, int args_num)
     {
       exit(-1);
     }
+    for (int i = 0; i <= args_num; ++i)
+    {
+        if (!is_user_vaddr((void *)esp[i]))
+        {
+            exit(-1);
+        }
+    }
 }
 
 void check_args(uint32_t *esp, int args_num)
@@ -130,7 +138,6 @@ void halt(void)
 void exit(int status)
 {
   printf("%s: exit(%d)\n", thread_name(), status);
-  struct relation *rel = thread_current()-> parent_relation;
   /* Set exit status. */
   thread_current()->parent_relation->exit_status = status;  
 
@@ -152,7 +159,6 @@ int wait(pid_t pid)
 
 pid_t exec(const char *cmd_line)
 {
-  check_user_ptr(cmd_line);
   return process_execute(cmd_line);
 }
 
@@ -228,7 +234,7 @@ int filesize (int fd)
 int read(int fd, void *buffer, unsigned size)
 {
   if (fd == STDIN) {
-    int i;
+    unsigned i;
     for (i = 0; input_getc() || i <= size; ++i) {
 
     }
