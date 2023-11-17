@@ -220,20 +220,21 @@ uint32_t sys_read (uint32_t *esp)
   void *buffer = (void *) esp[2];
   unsigned size = (unsigned) esp[3];
 
+  /* If fd == STDIN, reads from the keyboard using input_getc() */
   if (fd == STDIN) {
     unsigned i;
     for (i = 0; input_getc() || i <= size; ++i) {
 
     }
     return i;
-  }
+  } /* If fd is between FD_BEGIN and FD_END, reads size bytes from the file open as fd into buffer. */
   else if (fd >= FD_BEGIN && fd < FD_END)
   {
     lock_acquire(&filesys_lock);
     int read_val = file_read(thread_current() -> fd[fd], buffer, size);
     lock_release(&filesys_lock);
     return read_val;
-  }
+  } /* Otherwise, exit. */
   else
   {
     exit(EXIT_ERROR);
@@ -246,20 +247,21 @@ uint32_t sys_write (uint32_t *esp)
   const void *buffer = (const void *) esp[2];
   unsigned size = (unsigned) esp[3];
 
+  /* If fd == STDOUT, writes to the console using putbuf(). */
   if (fd == STDOUT) 
   {
     lock_acquire(&filesys_lock);
     putbuf(buffer, size);
     lock_release(&filesys_lock);
     return size;
-  } 
+  } /* If fd is between FD_BEGIN and FD_END, writes size bytes from buffer to the open file fd. */
   else if (fd >= FD_BEGIN && fd < FD_END)
   {
     lock_acquire(&filesys_lock);
     int write_val = file_write(thread_current() -> fd[fd], buffer, size);
     lock_release(&filesys_lock);
     return write_val;
-  }
+  } /* Otherwise, exit. */
   else
   {
     exit(EXIT_ERROR);
