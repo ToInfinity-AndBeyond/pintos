@@ -86,7 +86,7 @@ process_execute (const char *file_name)
   }
   // Wait for the child to sema_up when load is finished
   sema_down(&child_relation->sema);
-  return list_entry(list_front(&thread_current()->children_relation_list), struct relation, elem)->child_tid;
+  return list_entry(&child_relation->elem, struct relation, elem)->child_tid;
 }
 
 void *
@@ -110,15 +110,13 @@ arg_stack(void *file_name, void **esp)
   char *token;
   char *save_ptr;
   int argc = 0;
-  int base_size = sizeof (char **) + sizeof (int) + sizeof (void *) + 3;
-  unsigned total_size = base_size;
 
   for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
   {
     argv[argc] = token;
     argc++;
     if (argc >= ARG_LIMIT) {
-      exit(-1);
+      process_exit();
     }
   }
   
@@ -148,7 +146,7 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
-  int i;
+  size_t i;
   char thread_name[256];
   for (i = 0; i < strlen(file_name) + 1; ++i)
   {

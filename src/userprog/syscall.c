@@ -17,7 +17,6 @@ static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
 void halt(void);
-void exit(int status);
 int exec(const char *cmd_line);
 bool create(const char *file, unsigned initial_size);
 bool remove (const char *file);
@@ -29,7 +28,11 @@ int read(int fd, void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+
 void check_pointer(uint32_t *esp, int args_num);
+void check_esp(void *esp);
+void check_args(uint32_t *esp, int args_num);
+void check_user_ptr(const void *ptr);
 
 void
 syscall_init (void) 
@@ -63,7 +66,7 @@ syscall_handler (struct intr_frame *f) {
       f->eax = remove((const char *)esp[1]);
       break;
     case SYS_OPEN:
-      f->eax = open((int)esp[1]);
+      f->eax = open((const char *)esp[1]);
       break;
     case SYS_FILESIZE:
       f->eax = filesize((int)esp[1]);
@@ -91,7 +94,7 @@ syscall_handler (struct intr_frame *f) {
   }
 }
 
-void check_esp(uint32_t *esp) {
+void check_esp(void *esp) {
     if (!pagedir_get_page(thread_current()->pagedir, esp))
     {
       exit(-1);
@@ -109,7 +112,7 @@ void check_args(uint32_t *esp, int args_num)
     }
 }
 
-void check_user_ptr(void *ptr) {
+void check_user_ptr(const void *ptr) {
   if (ptr == NULL || !is_user_vaddr(ptr) || !pagedir_get_page(thread_current()->pagedir, ptr))
   {
     exit(-1);
@@ -202,7 +205,7 @@ int filesize (int fd)
 int read(int fd, void *buffer, unsigned size)
 {
   if (fd == 0) {
-    int i;
+    unsigned i;
     for (i = 0; input_getc() || i <= size; ++i) {
 
     }
