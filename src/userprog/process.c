@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "threads/synch.h"
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -14,12 +15,14 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -28,7 +31,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy;
+    char *fn_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -38,12 +41,97 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+
+  /* Create a new child parent relation 
+     The current thread is the parent, and the created thread is the child */
+  struct relation *child_relation = malloc(sizeof(struct relation));
+  sema_init(&child_relation->sema, 0);
+  lock_init(&child_relation->relation_lock);
+  child_relation->parent_tid = thread_current()->tid;
+  child_relation->parent_alive = true;
+  child_relation->child_alive = true;
+  list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
+  child_relation->exit_status = -1; // Temporary variable
+
+  size_t i;
+  char thread_name[256];
+
+  for (i = 0; i < strlen(file_name) + 1; ++i)
+  {
+    if (file_name[i] == ' ')
+    {
+      break;
+    }
+  }
+  strlcpy(thread_name, file_name, i + 1);
+
+  struct file *file = filesys_open(thread_name);
+  if (file == NULL)
+  {
+    return -1;
+  }
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
-  return tid;
+  tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
+    //sema_down(&thread_current() -> load_sema);
+  if (tid == TID_ERROR) {
+    palloc_free_page (fn_copy);
+    child_relation->child_alive = false;
+    child_relation->exit_status = -1;
+  }
+  // Wait for the child to sema_up when load is finished
+  sema_down(&child_relation->sema);
+
+  return child_relation->child_tid;
 }
+
+void *
+stack_element (void *write_dest, void *write_src, int size)
+{
+  write_dest -= size;
+  if (write_src == 0) {
+    memset(write_dest, 0, size);
+  } else {
+    memcpy (write_dest, write_src, size);
+  }
+  return write_dest;
+}
+
+/* A function that sets up an iniitial stack. */
+static void 
+arg_stack(void *file_name, void **esp)
+{
+  const int ARG_LIMIT = LOADER_ARGS_LEN / 2 + 1;
+  char *argv[ARG_LIMIT];
+  char *token;
+  char *save_ptr;
+  int argc = 0;
+
+  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
+  {
+    argv[argc] = token;
+    argc++;
+    if (argc >= ARG_LIMIT) {
+      process_exit();
+    }
+  }
+  
+  for (int i = argc - 1; i >= 0; i--) {
+    *esp = stack_element(*esp, argv[i], strlen(argv[i]) + 1);
+    argv[i] = *esp;
+  }
+
+  int align = ((uint32_t) *esp) % 4;
+  *esp = stack_element(*esp, 0, align*sizeof(char));
+  *esp = stack_element(*esp, 0, sizeof(char*));
+  
+  for (int i = argc - 1; i >= 0; i--) {
+    *esp = stack_element(*esp, &argv[i], sizeof(char *));
+  }
+  *esp = stack_element (*esp, esp, sizeof (char **));     
+  *esp = stack_element (*esp, &argc, sizeof (int));      
+  *esp = stack_element (*esp, 0, sizeof (void *));    
+ }
 
 /* A thread function that loads a user process and starts it
    running. */
@@ -54,17 +142,40 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+  size_t i;
+  char thread_name[256];
+  for (i = 0; i < strlen(file_name) + 1; ++i)
+  {
+    if (file_name[i] == ' ')
+    {
+      break;
+    }
+  }
+  strlcpy(thread_name, file_name, i + 1);
+  
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (thread_name, &if_.eip, &if_.esp);
 
+  struct relation * parent_relation = thread_current()->parent_relation;
   /* If load failed, quit. */
+  if (!success) { 
+    palloc_free_page (file_name);
+    // If the loading failed, child is not alive (quit)
+    parent_relation->child_alive = false;
+    parent_relation->child_tid = -1;
+    thread_exit();
+  }
+
+  // After loading, allow the parent thread to run
+  thread_current()->parent_relation->child_alive = true;
+  sema_up(&thread_current()->parent_relation->sema);
+
+  arg_stack(file_name, &if_.esp);
   palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -75,6 +186,7 @@ start_process (void *file_name_)
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
+
 
 /* Waits for thread TID to die and returns its exit status. 
  * If it was terminated by the kernel (i.e. killed due to an exception), 
@@ -88,9 +200,23 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  // while (true) {
-  //   barrier ();
-  // }
+  struct relation *r = NULL;
+  int exit_status;
+
+  for (struct list_elem* elem = list_begin(&thread_current()->children_relation_list);
+  elem != list_end(&thread_current()->children_relation_list); elem = list_next(elem))
+  {
+    r = list_entry(elem, struct relation, elem);
+    if (r->child_tid == child_tid) {
+      if (r->child_alive) {
+        sema_down(&r->sema);
+      }
+      exit_status = r->exit_status;
+      list_remove(&r->elem);
+      return exit_status;
+    }
+  }
+
   return -1;
 }
 
@@ -117,6 +243,37 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  
+  lock_acquire(&cur->parent_relation->relation_lock);
+  if (cur->parent_relation->parent_alive) {
+    sema_up(&cur->parent_relation->sema);
+    cur->parent_relation->child_alive = false;
+  } else {
+    free(cur->parent_relation);
+  }
+  lock_release(&cur->parent_relation->relation_lock);
+
+  struct list_elem *e = list_begin(&cur->children_relation_list);
+  struct relation * r;
+  struct list_elem *e_next;
+  while(e != list_end(&cur->children_relation_list))
+  {
+    e_next = list_next(e);
+    r = list_entry(e, struct relation, elem);
+
+    lock_acquire(&r->relation_lock);
+    if (r->child_alive) {
+      r->parent_alive = false;
+      lock_release(&r->relation_lock);
+    }
+    else
+    {
+      lock_release(&r->relation_lock);
+      free(r);
+    }
+
+    e = e_next;
+  }
 }
 
 /* Sets up the CPU for running user code in the current
@@ -363,7 +520,6 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
      assertions in memcpy(), etc. */
   if (phdr->p_vaddr < PGSIZE)
     return false;
-
   /* It's okay. */
   return true;
 }
@@ -454,7 +610,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE - 12;
       else
         palloc_free_page (kpage);
     }
