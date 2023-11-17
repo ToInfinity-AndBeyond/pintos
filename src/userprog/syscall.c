@@ -10,7 +10,12 @@
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
 #include "devices/input.h"
-#include <string.h>
+#define STDIN 0
+#define STDOUT 1
+#define STDERR 2
+#define FD_BEGIN 3
+#define FD_END 128
+
 
 struct lock filesys_lock;
 static void syscall_handler (struct intr_frame *f);
@@ -37,18 +42,21 @@ void check_user_ptr(const void *ptr);
 void
 syscall_init (void) 
 {
+  /* When syscall is initialised, lock_init. */
   lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+/* Using swtich - case, invokes a system call functions. */
 static void
 syscall_handler (struct intr_frame *f) {
+  /* Array used to store the number of syscall's arguments*/
   int syscall_args[]= {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
-  uint32_t *esp = (uint32_t *)f->esp;
-  check_esp(esp);
   int syscall_no = *(int *) f->esp;
-  check_args(esp, syscall_args[syscall_no]);
+  uint32_t *esp = (uint32_t *)f->esp; // stack pointer esp
+  check_pointer(esp, syscall_args[syscall_no]);
 
+  /* Each system call function is invoked by referencing esp as a parameter. */
   switch (syscall_no) {
     case SYS_HALT: 
       halt();
@@ -60,10 +68,10 @@ syscall_handler (struct intr_frame *f) {
       f->eax = exec((const char *)esp[1]);
       break;
     case SYS_CREATE:
-      f->eax = create((const char *)esp[1], (unsigned)esp[2]);
+      f -> eax = create((const char *)esp[1], (unsigned)esp[2]);
       break;
     case SYS_REMOVE:
-      f->eax = remove((const char *)esp[1]);
+      f -> eax = remove((const char *)esp[1]);
       break;
     case SYS_OPEN:
       f->eax = open((const char *)esp[1]);
@@ -94,8 +102,10 @@ syscall_handler (struct intr_frame *f) {
   }
 }
 
-void check_esp(void *esp) {
-    if (!pagedir_get_page(thread_current()->pagedir, esp))
+/* Checks if virtual address is correct*/
+void check_pointer(uint32_t *esp, int args_num)
+{
+    if (!pagedir_get_page(thread_current() -> pagedir, esp))
     {
       exit(-1);
     }
@@ -105,18 +115,11 @@ void check_args(uint32_t *esp, int args_num)
 {
     for (int i = 0; i <= args_num; ++i)
     {
-      if (!is_user_vaddr((void *)esp[i]))
-      {
-        exit(-1);
-      }
+        if (!is_user_vaddr((void *)esp[i]))
+        {
+            exit(-1);
+        }
     }
-}
-
-void check_user_ptr(const void *ptr) {
-  if (ptr == NULL || !is_user_vaddr(ptr) || !pagedir_get_page(thread_current()->pagedir, ptr))
-  {
-    exit(-1);
-  }
 }
 
 void halt(void)
@@ -127,9 +130,12 @@ void halt(void)
 void exit(int status)
 {
   printf("%s: exit(%d)\n", thread_name(), status);
-  thread_current()->parent_relation->exit_status = status;
+  struct relation *rel = thread_current()-> parent_relation;
+  /* Set exit status. */
+  thread_current()->parent_relation->exit_status = status;  
 
-  for (int i = 2; i < 128; i++)
+  /* In order to prevent memory leak, closed all the files using file_close */
+  for (int i = FD_BEGIN; i < FD_END; i++)
   {
     if (thread_current() -> fd[i] != NULL)
     {
@@ -152,7 +158,12 @@ pid_t exec(const char *cmd_line)
 
 bool create(const char *file, unsigned initial_size)
 {
-  check_user_ptr(file);
+  if (file == NULL)
+  {
+    exit(-1);
+  }
+  /* lock_acquire and lock_released are used before and after 
+     file operation is performed, respectively*/
   lock_acquire(&filesys_lock);
   bool is_created = filesys_create(file, initial_size);
   lock_release(&filesys_lock);
@@ -161,7 +172,12 @@ bool create(const char *file, unsigned initial_size)
 
 bool remove (const char *file)
 {
-  check_user_ptr(file);
+  /* If file name is null, terminate. */
+  if (file == NULL) 
+  {
+    exit(-1);
+  }
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   bool is_removed = filesys_remove(file);
   lock_release(&filesys_lock);
@@ -170,7 +186,12 @@ bool remove (const char *file)
 
 int open (const char *file)
 {
-  check_user_ptr(file);
+  /* If file name is null, terminate. */
+  if (file == NULL)
+  {
+    exit(-1);
+  }
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   struct file *fp = filesys_open(file);
   lock_release(&filesys_lock);
@@ -179,10 +200,11 @@ int open (const char *file)
     return -1;
   }
 
-  for (int i = 2; i < 128; i++)
+  for (int i = FD_BEGIN; i < FD_END; i++)
   {
     if (thread_current() -> fd[i] == NULL)
     {
+      /* Prevent writing to the current thread */
       if (!strcmp(thread_name(), file))
       {
         file_deny_write(fp);
@@ -196,6 +218,7 @@ int open (const char *file)
 
 int filesize (int fd)
 {
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   int file_size = file_length(thread_current() -> fd[fd]);
   lock_release(&filesys_lock);
@@ -204,14 +227,14 @@ int filesize (int fd)
 
 int read(int fd, void *buffer, unsigned size)
 {
-  if (fd == 0) {
-    unsigned i;
+  if (fd == STDIN) {
+    int i;
     for (i = 0; input_getc() || i <= size; ++i) {
 
     }
     return i;
   }
-  else if (fd >= 2 && fd < 128)
+  else if (fd >= FD_BEGIN && fd < FD_END)
   {
     lock_acquire(&filesys_lock);
     int read_val = file_read(thread_current() -> fd[fd], buffer, size);
@@ -226,15 +249,14 @@ int read(int fd, void *buffer, unsigned size)
 
 int write(int fd, const void *buffer, unsigned size)
 {
-  check_user_ptr(buffer);
-  if (fd == 1) 
+  if (fd == STDOUT) 
   {
     lock_acquire(&filesys_lock);
     putbuf(buffer, size);
     lock_release(&filesys_lock);
     return size;
   } 
-  else if (fd >= 2 && fd < 128)
+  else if (fd >= FD_BEGIN && fd < FD_END)
   {
     lock_acquire(&filesys_lock);
     int write_val = file_write(thread_current() -> fd[fd], buffer, size);
@@ -250,6 +272,7 @@ int write(int fd, const void *buffer, unsigned size)
 
 void seek(int fd, unsigned position)
 {
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   file_seek(thread_current() -> fd[fd], position);
   lock_release(&filesys_lock);
@@ -257,6 +280,7 @@ void seek(int fd, unsigned position)
 
 unsigned tell(int fd)
 {
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   unsigned tell_val = file_tell(thread_current() -> fd[fd]);
   lock_release(&filesys_lock);
@@ -270,6 +294,7 @@ void close(int fd)
   }
   struct file *fp = thread_current() -> fd[fd];
   thread_current() -> fd[fd] = NULL;
+  /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   file_close(fp);
   lock_release(&filesys_lock);

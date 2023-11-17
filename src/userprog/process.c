@@ -70,17 +70,11 @@ process_execute (const char *file_name)
     return -1;
   }
 
-  if (file_length(file) <= PGSIZE)
-  {
-    return -1;
-  }
-
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
     //sema_down(&thread_current() -> load_sema);
   if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
-
     child_relation->child_alive = false;
     child_relation->exit_status = -1;
   }
@@ -211,7 +205,6 @@ process_wait (tid_t child_tid UNUSED)
   elem != list_end(&thread_current()->children_relation_list); elem = list_next(elem))
   {
     r = list_entry(elem, struct relation, elem);
-    // printf("\n\n parent: %d, child: %d \n\n", thread_current()->tid, r->child_tid);
     if (r->child_tid == child_tid) {
       if (r->child_alive) {
         sema_down(&r->sema);

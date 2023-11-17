@@ -105,19 +105,15 @@ struct thread
     struct list donation_list;          /* List of threads donating priority to this thread. */
     struct list_elem donation_elem;     /* Donation List element. */
 
-
-    struct list children_relation_list;
-    struct relation *parent_relation;
     
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct list children_relation_list;
+    struct relation *parent_relation;
 #endif
 
    struct file *fd[128];
-   struct semaphore load_sema;
-   struct thread *parent;
-   bool is_loaded;
 
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
@@ -133,8 +129,10 @@ struct relation
    //   struct thread *child;
      tid_t child_tid;
      bool child_alive;
+     bool is_loaded;
      int exit_status;
      struct semaphore sema;
+     struct semaphore load_sema;
      struct list_elem elem;
     //  struct hash_elem helem;
   };
