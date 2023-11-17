@@ -287,7 +287,8 @@ thread_create(const char *name, int priority,
   init_thread(t, name, priority, cur->nice, cur->recent_cpu);
   tid = t->tid = allocate_tid();
 
-  // child_tid should be assigned after allocate_tid
+  /* Setup the parent_relation for the child thread 
+     child_tid should be assigned after allocate_tid */
   struct relation *parent_rel = list_entry(list_begin(&running_thread()->children_relation_list), struct relation, elem);
   parent_rel->child_tid = t->tid;
   t->parent_relation = parent_rel;

@@ -31,7 +31,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-    char *fn_copy;
+  char *fn_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
@@ -41,7 +41,6 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-
   /* Create a new child parent relation 
      The current thread is the parent, and the created thread is the child */
   struct relation *child_relation = malloc(sizeof(struct relation));
@@ -50,8 +49,8 @@ process_execute (const char *file_name)
   child_relation->parent_tid = thread_current()->tid;
   child_relation->parent_alive = true;
   child_relation->child_alive = true;
-  list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
   child_relation->exit_status = -1; // Temporary variable
+  list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
 
   size_t i;
   char thread_name[256];
@@ -73,15 +72,18 @@ process_execute (const char *file_name)
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
-    //sema_down(&thread_current() -> load_sema);
   if (tid == TID_ERROR) {
+    // Free page and update the child_relation status
     palloc_free_page (fn_copy);
     child_relation->child_alive = false;
     child_relation->exit_status = -1;
   }
-  // Wait for the child to sema_up when load is finished
+
+  /* Wait for the child to sema_up when load is finished */
   sema_down(&child_relation->sema);
 
+  /* Return the child_tid given in the relation, 
+     as it might have been updated during start_process */
   return child_relation->child_tid;
 }
 
@@ -167,7 +169,7 @@ start_process (void *file_name_)
     // If the loading failed, child is not alive (quit)
     parent_relation->child_alive = false;
     parent_relation->child_tid = -1;
-    thread_exit();
+    thread_exit(); // sema_up for the parent will be called here during process_exit()
   }
 
   // After loading, allow the parent thread to run
@@ -203,20 +205,24 @@ process_wait (tid_t child_tid UNUSED)
   struct relation *r = NULL;
   int exit_status;
 
+  /* Itereate through the children relation list 
+     to find the relation with the given child_tid */
   for (struct list_elem* elem = list_begin(&thread_current()->children_relation_list);
   elem != list_end(&thread_current()->children_relation_list); elem = list_next(elem))
   {
     r = list_entry(elem, struct relation, elem);
     if (r->child_tid == child_tid) {
-      if (r->child_alive) {
-        sema_down(&r->sema);
-      }
+      /* Wait for the child status */
+      sema_down(&r->sema);
+      /* Get the child exit status and remove the relation from the children_relation_list.
+         This prevents the parent from waiting multiple times on the same child */
       exit_status = r->exit_status;
       list_remove(&r->elem);
       return exit_status;
     }
   }
 
+  // If the relation is not found, return -1
   return -1;
 }
 
@@ -244,15 +250,22 @@ process_exit (void)
       pagedir_destroy (pd);
     }
   
+  /* Call sema_up for the parent_relation or free the relation 
+     Acquire the relation_lock to prevent race conditions during freeing */
   lock_acquire(&cur->parent_relation->relation_lock);
   if (cur->parent_relation->parent_alive) {
+    /* Call sema_up for the parent thread, as it might or will be waiting for it. */
     sema_up(&cur->parent_relation->sema);
     cur->parent_relation->child_alive = false;
+    lock_release(&cur->parent_relation->relation_lock);
   } else {
+    /* If the parent is not alive, free the parent relation. */
+    lock_release(&cur->parent_relation->relation_lock);
     free(cur->parent_relation);
   }
-  lock_release(&cur->parent_relation->relation_lock);
 
+  /* Iterate through the children_relation_list 
+     and free child relations that the child is not alive */
   struct list_elem *e = list_begin(&cur->children_relation_list);
   struct relation * r;
   struct list_elem *e_next;
