@@ -108,8 +108,8 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct list children_relation_list;
-    struct relation *parent_relation;
+    struct list children_relation_list; /* List of relations to the children. */
+    struct relation *parent_relation; /* Relation to its parent. */
 #endif
 
    struct file *fd[128];
@@ -122,15 +122,14 @@ struct thread
 
 struct relation
   {
-    tid_t parent_tid;
-    bool parent_alive;
-    tid_t child_tid;
-    bool child_alive;
-    struct lock relation_lock;
-    int exit_status;
-    struct semaphore sema;
-    struct list_elem elem;
-    //  struct hash_elem helem;
+    tid_t parent_tid; /* Holds the parent id. */
+    bool parent_alive; /* Checks if parent is alive. */
+    tid_t child_tid; /* Holds the child id. */
+    bool child_alive; /* Checks if child is alive. */
+    struct lock relation_lock; /* To synchronise exit and freeing relation. */
+    int exit_status; /* Exit status of the child. */
+    struct semaphore sema; /* To synchronise exec, wait, exit. */
+    struct list_elem elem; /* List element for children_relation_list. */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -191,7 +190,5 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-// unsigned relation_hash_hash_func(struct hash_elem *e, void *aux);
-// bool relation_hash_less_func(struct hash_elem *a, struct hash_elem *b, void *aux);
 
 #endif /* threads/thread.h */

@@ -81,16 +81,17 @@ static void check_pointer(uint32_t *esp, int args_num)
   }
 }
 
-/* Using switch - case, invokes a system call functions. */
+/* Using function pointers, invokes a system call functions. */
 static void
 syscall_handler (struct intr_frame *f) {
-  /* Array used to store the number of syscall's arguments*/
+  /* Array used to store the number of syscall's arguments. */
   int syscall_no = *(int *) f->esp;
-  uint32_t *esp = (uint32_t *)f->esp; // stack pointer esp
+  uint32_t *esp = (uint32_t *)f->esp; /* Stack pointer esp. */
   check_pointer(esp, syscall_args[syscall_no]);
   f->eax = (*syscall_func[syscall_no])(esp); 
 }
 
+/* Exit used for process.c and exception.c. */
 void exit (int status) 
 {
   printf("%s: exit(%d)\n", thread_name(), status);
@@ -114,6 +115,7 @@ uint32_t sys_halt (uint32_t *esp UNUSED)
   return VOID_RET;
 }
 
+/* Exit function called by syscall handler (function pointer). */
 uint32_t sys_exit (uint32_t *esp)
 {
   int status = (int) esp[1];
