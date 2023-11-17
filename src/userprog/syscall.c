@@ -11,16 +11,49 @@
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
 #include "devices/input.h"
+
 #define STDIN 0
 #define STDOUT 1
 #define STDERR 2
 #define FD_BEGIN 3
 #define FD_END 128
 
+#define VOID_RET 0
+
+uint32_t sys_halt (uint32_t *esp);
+uint32_t sys_exit (uint32_t *esp);
+uint32_t sys_exec (uint32_t *esp);
+uint32_t sys_wait (uint32_t *esp);
+uint32_t sys_create (uint32_t *esp);
+uint32_t sys_remove (uint32_t *esp);
+uint32_t sys_open (uint32_t *esp);
+uint32_t sys_filesize (uint32_t *esp);
+uint32_t sys_read (uint32_t *esp);
+uint32_t sys_write (uint32_t *esp);
+uint32_t sys_seek (uint32_t *esp);
+uint32_t sys_tell (uint32_t *esp);
+uint32_t sys_close (uint32_t *esp);
+
+void exit (int status);
 
 static struct lock filesys_lock;
-static const int syscall_args[]= {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
-
+static const int syscall_args[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
+static uint32_t (*syscall_func[]) (uint32_t *esp) = 
+{
+  sys_halt,
+  sys_exit,
+  sys_exec,
+  sys_wait,
+  sys_create,
+  sys_remove,
+  sys_open,
+  sys_filesize,
+  sys_read,
+  sys_write,
+  sys_seek,
+  sys_tell,
+  sys_close
+};
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
@@ -55,59 +88,10 @@ syscall_handler (struct intr_frame *f) {
   int syscall_no = *(int *) f->esp;
   uint32_t *esp = (uint32_t *)f->esp; // stack pointer esp
   check_pointer(esp, syscall_args[syscall_no]);
-
-  /* Each system call function is invoked by referencing esp as a parameter. */
-  switch (syscall_no) {
-    case SYS_HALT: 
-      halt();
-      break;
-    case SYS_EXIT:
-      exit((int)esp[1]);
-      break;
-    case SYS_EXEC:
-      f->eax = exec((const char *)esp[1]);
-      break;
-    case SYS_CREATE:
-      f->eax = create((const char *)esp[1], (unsigned)esp[2]);
-      break;
-    case SYS_REMOVE:
-      f->eax = remove((const char *)esp[1]);
-      break;
-    case SYS_OPEN:
-      f->eax = open((const char *)esp[1]);
-      break;
-    case SYS_FILESIZE:
-      f->eax = filesize((int)esp[1]);
-      break;
-    case SYS_WAIT:
-      f->eax = wait((pid_t)esp[1]);
-      break;
-    case SYS_READ:
-      f->eax = read((int)esp[1], (void *)esp[2], (unsigned)esp[3]);
-      break;
-    case SYS_WRITE:
-      f->eax = write((int)esp[1], (const void *)esp[2], (unsigned)esp[3]);
-      break;
-    case SYS_SEEK:
-      seek((int)esp[1], (unsigned)esp[2]);
-      break;
-    case SYS_TELL:
-      f->eax = tell((int)esp[1]);
-      break;
-    case SYS_CLOSE:
-      close ((int)esp[1]);
-      break;
-    default:
-      exit(-1);
-  }
+  f->eax = (*syscall_func[syscall_no])(esp); 
 }
 
-void halt(void)
-{
-  shutdown_power_off();
-}
-
-void exit(int status)
+void exit (int status) 
 {
   printf("%s: exit(%d)\n", thread_name(), status);
   /* Set exit status. */
@@ -124,18 +108,50 @@ void exit(int status)
   thread_exit();  
 }
 
-int wait(pid_t pid)
+uint32_t sys_halt (uint32_t *esp UNUSED)
 {
+  shutdown_power_off();
+  return VOID_RET;
+}
+
+uint32_t sys_exit (uint32_t *esp)
+{
+  int status = (int) esp[1];
+
+  printf("%s: exit(%d)\n", thread_name(), status);
+  /* Set exit status. */
+  thread_current()->parent_relation->exit_status = status;  
+
+  /* In order to prevent memory leak, closed all the files using file_close */
+  for (int i = FD_BEGIN; i < FD_END; i++)
+  {
+    if (thread_current() -> fd[i] != NULL)
+    {
+      file_close(thread_current() -> fd[i]);
+    }
+  }
+  thread_exit();  
+}
+
+uint32_t sys_wait (uint32_t *esp)
+{
+  pid_t pid = (pid_t) esp[1];
+
   return process_wait(pid);
 }
 
-pid_t exec(const char *cmd_line)
+uint32_t sys_exec (uint32_t *esp)
 {
+  const char *cmd_line = (const char *) esp[1];
+
   return process_execute(cmd_line);
 }
 
-bool create(const char *file, unsigned initial_size)
+uint32_t sys_create (uint32_t *esp)
 {
+  const char *file = (const char *) esp[1];
+  unsigned initial_size = (unsigned) esp[2];
+  
   if (file == NULL)
   {
     exit(-1);
@@ -148,8 +164,10 @@ bool create(const char *file, unsigned initial_size)
   return is_created;
 }
 
-bool remove (const char *file)
+uint32_t sys_remove (uint32_t *esp)
 {
+  const char *file = (const char *) esp[1];
+
   /* If file name is null, terminate. */
   if (file == NULL) 
   {
@@ -162,8 +180,10 @@ bool remove (const char *file)
   return is_removed;
 }
 
-int open (const char *file)
+uint32_t sys_open (uint32_t *esp)
 {
+  const char *file = (const char *) esp[1];
+
   /* If file name is null, terminate. */
   if (file == NULL)
   {
@@ -194,8 +214,10 @@ int open (const char *file)
   return -1;
 }
 
-int filesize (int fd)
+uint32_t sys_filesize (uint32_t *esp)
 {
+  int fd = (int) esp[1];
+
   /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   int file_size = file_length(thread_current() -> fd[fd]);
@@ -203,8 +225,12 @@ int filesize (int fd)
   return file_size;
 }
 
-int read(int fd, void *buffer, unsigned size)
+uint32_t sys_read (uint32_t *esp)
 {
+  int fd = (int) esp[1];
+  void *buffer = (void *) esp[2];
+  unsigned size = (unsigned) esp[3];
+
   if (fd == STDIN) {
     unsigned i;
     for (i = 0; input_getc() || i <= size; ++i) {
@@ -225,8 +251,12 @@ int read(int fd, void *buffer, unsigned size)
   }
 }
 
-int write(int fd, const void *buffer, unsigned size)
+uint32_t sys_write (uint32_t *esp)
 {
+  int fd = (int) esp[1];
+  const void *buffer = (const void *) esp[2];
+  unsigned size = (unsigned) esp[3];
+
   if (fd == STDOUT) 
   {
     lock_acquire(&filesys_lock);
@@ -248,16 +278,22 @@ int write(int fd, const void *buffer, unsigned size)
   return -1;
 }
 
-void seek(int fd, unsigned position)
+uint32_t sys_seek (uint32_t *esp)
 {
+  int fd = (int) esp[1];
+  unsigned position = (unsigned) esp[2];
+
   /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   file_seek(thread_current() -> fd[fd], position);
   lock_release(&filesys_lock);
+  return VOID_RET;
 }
 
-unsigned tell(int fd)
+uint32_t sys_tell (uint32_t *esp)
 {
+  int fd = (int) esp[1];
+
   /* Synchronization using lock */
   lock_acquire(&filesys_lock);
   unsigned tell_val = file_tell(thread_current() -> fd[fd]);
@@ -265,9 +301,14 @@ unsigned tell(int fd)
   return tell_val;
 } 
 
-void close(int fd)
+uint32_t sys_close (uint32_t *esp)
 {
+<<<<<<< src/userprog/syscall.c
+  int fd = (int) esp[1];
+  
+=======
   if (fd < FD_BEGIN || fd >= FD_END) {
+>>>>>>> src/userprog/syscall.c
     exit(-1);
   }
   struct file *fp = thread_current() -> fd[fd];
@@ -276,4 +317,5 @@ void close(int fd)
   lock_acquire(&filesys_lock);
   file_close(fp);
   lock_release(&filesys_lock);
+  return VOID_RET;
 }
