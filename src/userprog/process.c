@@ -47,7 +47,6 @@ process_execute (const char *file_name)
   sema_init(&child_relation->sema, 0);
   child_relation->parent_tid = thread_current()->tid;
   child_relation->parent_alive = true;
-  // child_relation->child_tid = -1;
   child_relation->child_alive = true;
   list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
   child_relation->exit_status = -1; // Temporary variable
@@ -69,11 +68,6 @@ process_execute (const char *file_name)
   {
     return -1;
   }
-
-  // if (file_length(file) <= PGSIZE)
-  // {
-  //   return -1;
-  // }
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (thread_name, PRI_DEFAULT, start_process, fn_copy);
@@ -216,7 +210,6 @@ process_wait (tid_t child_tid UNUSED)
   elem != list_end(&thread_current()->children_relation_list); elem = list_next(elem))
   {
     r = list_entry(elem, struct relation, elem);
-    // printf("\n\n parent: %d, child: %d \n\n", thread_current()->tid, r->child_tid);
     if (r->child_tid == child_tid) {
       if (r->child_alive) {
         sema_down(&r->sema);
@@ -272,7 +265,6 @@ process_exit (void)
     r = list_entry(e, struct relation, elem);
 
     if (r->child_alive) {
-      // r->child->parent_relation = NULL;
       r->parent_alive = false;
     }
     else
