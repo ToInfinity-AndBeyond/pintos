@@ -101,23 +101,18 @@ struct thread
 
     int base_priority;                  /* Base priority. */
     struct lock *waiting_lock;          /* Lock this thread is waiting for. */
-    struct list holding_locks;          /* List of locks the  thread is holding */
     struct list donation_list;          /* List of threads donating priority to this thread. */
     struct list_elem donation_elem;     /* Donation List element. */
 
+    
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct list children_list;
-    struct list_elem child_elem;
-    int exit_status;
-    struct semaphore parent_waiting_sema;
-    struct semaphore memory_lock;
-    bool parent_is_waiting;             /* Whether this thread is being waited on by parent */
     struct list children_relation_list;
-    // struct hash *children_relation_hash;
     struct relation *parent_relation;
 #endif
+
+   struct file *fd[128];
 
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
@@ -127,15 +122,14 @@ struct thread
 
 struct relation
   {
-   //   struct thread *parent;
-     tid_t parent_tid;
-     bool parent_alive;
-   //   struct thread *child;
-     tid_t child_tid;
-     bool child_alive;
-     int exit_status;
-     struct semaphore sema;
-     struct list_elem elem;
+    tid_t parent_tid;
+    bool parent_alive;
+    tid_t child_tid;
+    bool child_alive;
+    struct lock relation_lock;
+    int exit_status;
+    struct semaphore sema;
+    struct list_elem elem;
     //  struct hash_elem helem;
   };
 

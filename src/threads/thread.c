@@ -714,33 +714,20 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   t->nice = nice;
   t->recent_cpu = recent_cpu;
   t->magic = THREAD_MAGIC;
-
-  list_init(&t->children_relation_list);
-  // hash_init(&t->children_relation_hash, );
-
-  /* The current thread is the parent thread 
-     Thread t, which is to be created is the child thread
-     The beginning of the current thread's children_relation_list is the relation to this thread.
-     Thread main, which is the first to be initialized has no parent */
-  // if(strcmp(name, "main") != 0) {
-  //   struct relation *parent_rel = list_entry(list_begin(&running_thread()->children_relation_list), struct relation, elem);
-  //   parent_rel->child_tid = t->tid;
-  //   t->parent_relation = parent_rel;
-  // } else {
-  //   t->parent_relation = NULL;
-  // }
   
-
   old_level = intr_disable();
   list_push_back(&all_list, &t->allelem);
   intr_set_level(old_level);  
 
   #ifdef USERPROG
-    sema_init(&(t -> parent_waiting_sema), 0);
-    sema_init(&(t -> memory_lock), 0);
-    list_init(&(t->children_list));
-    list_push_back(&(running_thread()->children_list), &(t->child_elem));
+    list_init(&t->children_relation_list);
   #endif
+
+  /* Initialize file descriptor array */
+  for (int i = 0; i < 128; i++) 
+  {
+    t -> fd[i] = NULL;
+  }
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
