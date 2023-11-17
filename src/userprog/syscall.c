@@ -22,7 +22,6 @@ static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
 void halt(void);
-void exit(int status);
 int exec(const char *cmd_line);
 bool create(const char *file, unsigned initial_size);
 bool remove (const char *file);
@@ -34,7 +33,11 @@ int read(int fd, void *buffer, unsigned size);
 void seek(int fd, unsigned position);
 unsigned tell(int fd);
 void close(int fd);
+
 void check_pointer(uint32_t *esp, int args_num);
+void check_esp(void *esp);
+void check_args(uint32_t *esp, int args_num);
+void check_user_ptr(const void *ptr);
 
 void
 syscall_init (void) 
@@ -71,7 +74,7 @@ syscall_handler (struct intr_frame *f) {
       f -> eax = remove((const char *)esp[1]);
       break;
     case SYS_OPEN:
-      f->eax = open((int)esp[1]);
+      f->eax = open((const char *)esp[1]);
       break;
     case SYS_FILESIZE:
       f->eax = filesize((int)esp[1]);
@@ -106,6 +109,10 @@ void check_pointer(uint32_t *esp, int args_num)
     {
       exit(-1);
     }
+}
+
+void check_args(uint32_t *esp, int args_num)
+{
     for (int i = 0; i <= args_num; ++i)
     {
         if (!is_user_vaddr((void *)esp[i]))
@@ -145,6 +152,7 @@ int wait(pid_t pid)
 
 pid_t exec(const char *cmd_line)
 {
+  check_user_ptr(cmd_line);
   return process_execute(cmd_line);
 }
 
@@ -281,6 +289,9 @@ unsigned tell(int fd)
 
 void close(int fd)
 {
+  if (fd < 2 || fd >= 128) {
+    exit(-1);
+  }
   struct file *fp = thread_current() -> fd[fd];
   thread_current() -> fd[fd] = NULL;
   /* Synchronization using lock */
@@ -288,4 +299,3 @@ void close(int fd)
   file_close(fp);
   lock_release(&filesys_lock);
 }
-

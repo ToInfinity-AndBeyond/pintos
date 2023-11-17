@@ -5,6 +5,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/syscall.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -148,7 +149,7 @@ page_fault (struct intr_frame *f)
 
    if(!user || is_kernel_vaddr(fault_addr) || not_present)
    {
-      exit(-1);
+      exit(-1); 
    }
 
   /* To implement virtual memory, delete the rest of the function
