@@ -457,11 +457,16 @@ thread_foreach(thread_action_func *func, void *aux)
 void 
 thread_set_priority(int new_priority)
 {
+  enum intr_level old_level;
+  old_level = intr_disable();
+
   if (!thread_mlfqs)
   {
     thread_current()->base_priority = new_priority;
   }
+
   update_priority();
+  intr_set_level(old_level);
   thread_preempt();
 }
 
