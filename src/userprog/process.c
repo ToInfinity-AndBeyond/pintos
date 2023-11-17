@@ -103,19 +103,24 @@ stack_element (void *write_dest, void *write_src, int size)
 static void 
 arg_stack(void *file_name, void **esp)
 {
-  const int ARG_LIMIT = LOADER_ARGS_LEN / 2 + 1;
+  const int ARG_LIMIT = LOADER_ARGS_LEN;
   char *argv[ARG_LIMIT];
   char *token;
   char *save_ptr;
   int argc = 0;
+  void* stack_ptr = *esp;
 
   for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
   {
+    size_t token_length = strlen (token) + 1;                                          
+    stack_ptr = (void*)(((char*) stack_ptr) - token_length);                  
+    if (PHYS_BASE - stack_ptr > PGSIZE)
+    {
+      exit(-1);
+    }
+    strlcpy ((char*)stack_ptr, token, token_length);
     argv[argc] = token;
     argc++;
-    if (argc >= ARG_LIMIT) {
-      process_exit();
-    }
   }
   
   for (int i = argc - 1; i >= 0; i--) {
