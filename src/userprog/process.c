@@ -52,6 +52,7 @@ process_execute (const char *file_name)
   child_relation->exit_status = -1; // Temporary variable
   list_push_front(&thread_current()->children_relation_list, &child_relation->elem);
 
+  /* Process for the thread_name from the file name. */
   size_t i;
   char thread_name[256];
 
@@ -64,6 +65,7 @@ process_execute (const char *file_name)
   }
   strlcpy(thread_name, file_name, i + 1);
 
+  /* Checks if file that is opened using thread_name is NULL*/
   struct file *file = filesys_open(thread_name);
   if (file == NULL)
   {
@@ -87,22 +89,25 @@ process_execute (const char *file_name)
   return child_relation->child_tid;
 }
 
+/* Helper function that decrements the dest by given size, and then writes 0 or src at
+   dest depending on the src and returns dest */
 void *
-stack_element (void *write_dest, void *write_src, int size)
+stack_element (void *dest, void *src, int size)
 {
-  write_dest -= size;
-  if (write_src == 0) {
-    memset(write_dest, 0, size);
+  dest -= size;
+  if (src == 0) {
+    memset(dest, 0, size);
   } else {
-    memcpy (write_dest, write_src, size);
+    memcpy (dest, src, size);
   }
-  return write_dest;
+  return dest;
 }
 
 /* A function that sets up an iniitial stack. */
 static void 
 arg_stack(void *file_name, void **esp)
 {
+  /* size of argv array takes length of LOADER_ARGS_LENGTH */
   const int ARG_LIMIT = LOADER_ARGS_LEN;
   char *argv[ARG_LIMIT];
   char *token;
@@ -110,6 +115,7 @@ arg_stack(void *file_name, void **esp)
   int argc = 0;
   void* stack_ptr = *esp;
 
+  /* Tokenize using strtok_r and check if overflow of user's stack page has occurred */
   for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr))
   {
     size_t token_length = strlen (token) + 1;                                          
@@ -123,7 +129,9 @@ arg_stack(void *file_name, void **esp)
     argc++;
   }
   
-  for (int i = argc - 1; i >= 0; i--) {
+  for (int i = argc - 1; i >= 0; i--) 
+  {
+    /* Pushes arguments to the stack. */
     *esp = stack_element(*esp, argv[i], strlen(argv[i]) + 1);
     argv[i] = *esp;
   }
@@ -131,8 +139,10 @@ arg_stack(void *file_name, void **esp)
   int align = ((uint32_t) *esp) % 4;
   *esp = stack_element(*esp, 0, align*sizeof(char));
   *esp = stack_element(*esp, 0, sizeof(char*));
-  
-  for (int i = argc - 1; i >= 0; i--) {
+
+  /* Pushes pointers to the argument to the stack. */
+  for (int i = argc - 1; i >= 0; i--) 
+  {
     *esp = stack_element(*esp, &argv[i], sizeof(char *));
   }
   *esp = stack_element (*esp, esp, sizeof (char **));     
@@ -149,6 +159,7 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+  /* Process for the thread_name from the file name. */
   size_t i;
   char thread_name[256];
   for (i = 0; i < strlen(file_name) + 1; ++i)
@@ -177,7 +188,7 @@ start_process (void *file_name_)
     thread_exit(); // sema_up for the parent will be called here during process_exit()
   }
 
-  // After loading, allow the parent thread to run
+  /* After loading, allow the parent thread to run */
   thread_current()->parent_relation->child_alive = true;
   sema_up(&thread_current()->parent_relation->sema);
 
@@ -227,7 +238,7 @@ process_wait (tid_t child_tid UNUSED)
     }
   }
 
-  // If the relation is not found, return -1
+  /* If the relation is not found, return -1 */
   return -1;
 }
 
