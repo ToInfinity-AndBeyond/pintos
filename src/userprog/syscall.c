@@ -70,13 +70,13 @@ static void check_pointer(uint32_t *esp, int args_num)
 {
   if (!pagedir_get_page(thread_current() -> pagedir, esp))
   {
-    exit(-1);
+    exit(EXIT_ERROR);
   }
   for (int i = 0; i <= args_num; ++i)
   {
     if (!is_user_vaddr((void *)esp[i]))
     {
-      exit(-1);
+      exit(EXIT_ERROR);
     }
   }
 }
@@ -154,7 +154,7 @@ uint32_t sys_create (uint32_t *esp)
   
   if (file == NULL)
   {
-    exit(-1);
+    exit(EXIT_ERROR);
   }
   /* lock_acquire and lock_released are used before and after 
      file operation is performed, respectively*/
@@ -171,7 +171,7 @@ uint32_t sys_remove (uint32_t *esp)
   /* If file name is null, terminate. */
   if (file == NULL) 
   {
-    exit(-1);
+    exit(EXIT_ERROR);
   }
   /* Synchronization using lock */
   lock_acquire(&filesys_lock);
@@ -187,7 +187,7 @@ uint32_t sys_open (uint32_t *esp)
   /* If file name is null, terminate. */
   if (file == NULL)
   {
-    exit(-1);
+    exit(EXIT_ERROR);
   }
   /* Synchronization using lock */
   lock_acquire(&filesys_lock);
@@ -247,7 +247,7 @@ uint32_t sys_read (uint32_t *esp)
   }
   else
   {
-    exit(-1);
+    exit(EXIT_ERROR);
   }
 }
 
@@ -273,7 +273,7 @@ uint32_t sys_write (uint32_t *esp)
   }
   else
   {
-    exit(-1);
+    exit(EXIT_ERROR);
   }
   return -1;
 }
@@ -303,13 +303,10 @@ uint32_t sys_tell (uint32_t *esp)
 
 uint32_t sys_close (uint32_t *esp)
 {
-<<<<<<< src/userprog/syscall.c
   int fd = (int) esp[1];
   
-=======
   if (fd < FD_BEGIN || fd >= FD_END) {
->>>>>>> src/userprog/syscall.c
-    exit(-1);
+    exit(EXIT_ERROR);
   }
   struct file *fp = thread_current() -> fd[fd];
   thread_current() -> fd[fd] = NULL;

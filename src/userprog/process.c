@@ -19,6 +19,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/syscall.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -116,7 +117,7 @@ arg_stack(void *file_name, void **esp)
     stack_ptr = (void*)(((char*) stack_ptr) - token_length);                  
     if (PHYS_BASE - stack_ptr > PGSIZE)
     {
-      exit(-1);
+      exit(EXIT_ERROR);
     }
     strlcpy ((char*)stack_ptr, token, token_length);
     argv[argc] = token;

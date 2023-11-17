@@ -149,7 +149,7 @@ page_fault (struct intr_frame *f)
 
    if(!user || is_kernel_vaddr(fault_addr) || not_present)
    {
-      exit(-1); 
+      exit(EXIT_ERROR); 
    }
 
   /* To implement virtual memory, delete the rest of the function
