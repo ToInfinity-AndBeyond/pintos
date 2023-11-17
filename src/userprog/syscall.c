@@ -24,21 +24,6 @@ static const int syscall_args[]= {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
-void halt(void);
-int exec(const char *cmd_line);
-bool create(const char *file, unsigned initial_size);
-bool remove (const char *file);
-int open (const char *file);
-int filesize (int fd);
-int wait(int pid);
-int write(int fd, const void *buffer, unsigned size);
-int read(int fd, void *buffer, unsigned size);
-void seek(int fd, unsigned position);
-unsigned tell(int fd);
-void close(int fd);
-
-void check_pointer(uint32_t *esp, int args_num);
-
 void
 syscall_init (void) 
 {
@@ -47,7 +32,23 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-/* Using swtich - case, invokes a system call functions. */
+/* Checks if virtual address is correct*/
+static void check_pointer(uint32_t *esp, int args_num)
+{
+  if (!pagedir_get_page(thread_current() -> pagedir, esp))
+  {
+    exit(-1);
+  }
+  for (int i = 0; i <= args_num; ++i)
+  {
+    if (!is_user_vaddr((void *)esp[i]))
+    {
+      exit(-1);
+    }
+  }
+}
+
+/* Using switch - case, invokes a system call functions. */
 static void
 syscall_handler (struct intr_frame *f) {
   /* Array used to store the number of syscall's arguments*/
@@ -67,10 +68,10 @@ syscall_handler (struct intr_frame *f) {
       f->eax = exec((const char *)esp[1]);
       break;
     case SYS_CREATE:
-      f -> eax = create((const char *)esp[1], (unsigned)esp[2]);
+      f->eax = create((const char *)esp[1], (unsigned)esp[2]);
       break;
     case SYS_REMOVE:
-      f -> eax = remove((const char *)esp[1]);
+      f->eax = remove((const char *)esp[1]);
       break;
     case SYS_OPEN:
       f->eax = open((const char *)esp[1]);
@@ -99,22 +100,6 @@ syscall_handler (struct intr_frame *f) {
     default:
       exit(-1);
   }
-}
-
-/* Checks if virtual address is correct*/
-void check_pointer(uint32_t *esp, int args_num)
-{
-    if (!pagedir_get_page(thread_current() -> pagedir, esp))
-    {
-      exit(-1);
-    }
-    for (int i = 0; i <= args_num; ++i)
-    {
-        if (!is_user_vaddr((void *)esp[i]))
-        {
-            exit(-1);
-        }
-    }
 }
 
 void halt(void)
