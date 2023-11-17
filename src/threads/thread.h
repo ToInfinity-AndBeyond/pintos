@@ -105,8 +105,6 @@ struct thread
     struct list donation_list;          /* List of threads donating priority to this thread. */
     struct list_elem donation_elem;     /* Donation List element. */
 
-
-  
     
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -115,7 +113,8 @@ struct thread
     struct relation *parent_relation;
 #endif
 
-    struct file *fd[128];  
+   struct file *fd[128];
+
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
     real recent_cpu;                    /* How much CPU time the thread has recently taken */
@@ -124,14 +123,18 @@ struct thread
 
 struct relation
   {
+   //   struct thread *parent;
      tid_t parent_tid;
      bool parent_alive;
+   //   struct thread *child;
      tid_t child_tid;
      bool child_alive;
      bool is_loaded;
      int exit_status;
      struct semaphore sema;
+     struct semaphore load_sema;
      struct list_elem elem;
+    //  struct hash_elem helem;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -191,5 +194,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+// unsigned relation_hash_hash_func(struct hash_elem *e, void *aux);
+// bool relation_hash_less_func(struct hash_elem *a, struct hash_elem *b, void *aux);
 
 #endif /* threads/thread.h */

@@ -728,9 +728,6 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   {
     t -> fd[i] = NULL;
   }
-  sema_init(&(t->load_sema), 0);
-  t->is_loaded = false;
-  t->parent = running_thread();
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
