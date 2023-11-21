@@ -2,6 +2,10 @@
 #include "frame.h"
 #include "threads/palloc.h"
 #include <hash.h>
+#include "lib/debug.h"
+
+#define FRAME_BITS 20
+#define MAX_FRAME_NUMBER (1 << FRAME_BITS)
 
 struct frame_table_entry {
   int frame_no;
@@ -12,12 +16,12 @@ struct frame_table_entry {
 
 struct hash frame_table;
 
-unsigned frame_hash_func(const struct hash_elem *element, void *aux)
+unsigned frame_hash_func(const struct hash_elem *element, void *aux UNUSED)
 {
   return hash_int(hash_entry(element, struct frame_table_entry, helem)->frame_no);
 }
 
-bool frame_less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux)
+bool frame_less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED)
 {
   struct frame_table_entry *entrya = hash_entry(a, struct frame_table_entry, helem);
   struct frame_table_entry *entryb = hash_entry(b, struct frame_table_entry, helem);
@@ -27,5 +31,27 @@ bool frame_less_func(const struct hash_elem *a, const struct hash_elem *b, void 
 
 void frame_init(void)
 {
-  hash_init(&frame_table, &frame_hash_func, &frame_less_func, NULL);
+  bool success = hash_init(&frame_table, frame_hash_func, frame_less_func, NULL);
+  if (!success)
+  {
+    PANIC("Frame table could not be allocated");
+  }
+}
+
+// Returns the frame_table_entry * with the corresponding frame_no
+struct frame_table_entry *frame_lookup(int frame_no)
+{
+  struct frame_table_entry f;
+  f.frame_no = frame_no;
+  struct hash_elem *e = hash_find(&frame_table, &f.helem);
+  return e != NULL ? hash_entry(e, struct frame_table_entry, helem) : NULL;
+}
+
+// Deletes given frame_no from frame_table. Ensure result is freed.
+struct frame_table_entry *frame_delete(int frame_no)
+{
+  struct frame_table_entry f;
+  f.frame_no = frame_no;
+  struct hash_elem *e = hash_delete(&frame_table, &f.helem);
+  return e != NULL ? hash_entry(e, struct frame_table_entry, helem) : NULL;
 }
