@@ -3,6 +3,7 @@
 #include "threads/palloc.h"
 #include <hash.h>
 #include "lib/debug.h"
+#include "timer.h"
 
 #define FRAME_BITS 20
 #define MAX_FRAME_NUMBER (1 << FRAME_BITS)
@@ -32,10 +33,7 @@ bool frame_less_func(const struct hash_elem *a, const struct hash_elem *b, void 
 void frame_init(void)
 {
   bool success = hash_init(&frame_table, frame_hash_func, frame_less_func, NULL);
-  if (!success)
-  {
-    PANIC("Frame table could not be allocated");
-  }
+  if (!success) PANIC("Frame table could not be allocated");
 }
 
 // Returns the frame_table_entry * with the corresponding frame_no
@@ -47,11 +45,28 @@ struct frame_table_entry *frame_lookup(int frame_no)
   return e != NULL ? hash_entry(e, struct frame_table_entry, helem) : NULL;
 }
 
-// Deletes given frame_no from frame_table. Ensure result is freed.
-struct frame_table_entry *frame_delete(int frame_no)
+void frame_add(int frame_no, void *page)
+{
+  struct frame_table_entry *frame = malloc(sizeof(struct frame_table_entry));
+  if (frame == NULL) PANIC("Frame entry could not be initialised");
+
+  *frame = (struct frame_table_entry) {
+    .frame_no = frame_no,
+    .page = page,
+    .ticks = timer_ticks()
+  };
+  hash_insert(&frame_table, &frame->helem);
+}
+
+// Deletes given frame_no from frame_table and frees it
+void frame_remove(int frame_no)
 {
   struct frame_table_entry f;
   f.frame_no = frame_no;
   struct hash_elem *e = hash_delete(&frame_table, &f.helem);
-  return e != NULL ? hash_entry(e, struct frame_table_entry, helem) : NULL;
+
+  if (e != NULL)
+  {
+    free(hash_entry(e, struct frame_table_entry, helem))
+  }
 }
