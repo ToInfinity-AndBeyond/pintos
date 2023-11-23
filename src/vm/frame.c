@@ -1,21 +1,9 @@
-// Placing all frame code here for now and later refactor some into frame.h
 #include "frame.h"
 #include "threads/palloc.h"
-#include <hash.h>
 #include "lib/debug.h"
 #include "timer.h"
 
-#define FRAME_BITS 20
-#define MAX_FRAME_NUMBER (1 << FRAME_BITS)
-
-struct frame_table_entry {
-  int frame_no;
-  void *page;
-  int64_t ticks;
-  struct hash_elem helem;
-};
-
-struct hash frame_table;
+static struct hash frame_table;
 
 unsigned frame_hash_func(const struct hash_elem *element, void *aux UNUSED)
 {
@@ -28,6 +16,12 @@ bool frame_less_func(const struct hash_elem *a, const struct hash_elem *b, void 
   struct frame_table_entry *entryb = hash_entry(b, struct frame_table_entry, helem);
 
   return entrya->frame_no < entryb->frame_no;
+}
+
+// Frees the frame_table_entry which e is embedded within
+void frame_free_func(struct hash_elem *e, void *aux UNUSED)
+{
+  free(hash_entry(e, struct frame_table_entry, helem));
 }
 
 void frame_init(void)
@@ -45,6 +39,7 @@ struct frame_table_entry *frame_lookup(int frame_no)
   return e != NULL ? hash_entry(e, struct frame_table_entry, helem) : NULL;
 }
 
+// If the frame_no already exists, removes and frees the frame_table_entry
 void frame_add(int frame_no, void *page)
 {
   struct frame_table_entry *frame = malloc(sizeof(struct frame_table_entry));
@@ -55,7 +50,9 @@ void frame_add(int frame_no, void *page)
     .page = page,
     .ticks = timer_ticks()
   };
-  hash_insert(&frame_table, &frame->helem);
+
+  struct hash_elem *e = hash_replace(&frame_table, &frame->helem);
+  if (e != NULL) frame_free_func(e, NULL);
 }
 
 // Deletes given frame_no from frame_table and frees it
@@ -65,8 +62,15 @@ void frame_remove(int frame_no)
   f.frame_no = frame_no;
   struct hash_elem *e = hash_delete(&frame_table, &f.helem);
 
-  if (e != NULL)
-  {
-    free(hash_entry(e, struct frame_table_entry, helem))
-  }
+  if (e != NULL) frame_free_func(e, NULL);
+}
+
+void frame_clear(void)
+{
+  hash_clear(&frame_table, frame_free_func);
+}
+
+void frame_destroy(void)
+{
+  hash_destroy(&frame_table, frame_free_func);
 }
