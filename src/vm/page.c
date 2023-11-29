@@ -69,8 +69,8 @@ struct spt_entry *find_spte(void *vaddr)
 	else
 		return NULL;
 }
-/* Remove the bucket list and spt_entries from the hash table using the hash_destroy() function. */
-void vm_destroy(struct hash *spt)
+/* Remove spt_entries from the hash table using the hash_destroy() function. */
+void spt_destroy(struct hash *spt)
 {
 	hash_destroy (spt, spt_destroy_func);
 }
