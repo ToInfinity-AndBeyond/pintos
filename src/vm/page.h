@@ -4,7 +4,8 @@
 struct spt_entry{
     uint8_t type; 
     void *vaddr;  
-    bool writable;  
+    bool writable;
+      
 
     bool is_loaded;  
     struct file* file; 
@@ -19,3 +20,13 @@ struct spt_entry{
 
     struct hash_elem elem;
 };
+
+struct mmap_entry{
+    int mapid;  
+    struct file * file; 
+    struct list_elem elem; 
+    struct list spte_list; 
+};
+
+
+
