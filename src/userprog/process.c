@@ -24,6 +24,8 @@
 #include "vm/frame.h"
 #include "vm/swap.h"
 
+#define LIMIT_STACK_SIZE 8*1024*1024
+#define ADDRESS_SIZE 32
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -665,4 +667,40 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+bool
+check_stack_esp(void *addr, void *esp)
+{
+  return is_user_vaddr(pg_round_down(addr)) && addr >= esp - ADDRESS_SIZE 
+         && addr >= (PHYS_BASE - LIMIT_STACK_SIZE);
+}
+
+/* Expand stack to include addr. */
+bool expand_stack(void *addr)
+{
+	struct spt_entry *spte = malloc(sizeof(struct spt_entry));
+	if(spte==NULL)
+  {
+    return false;
+  }
+
+  struct page *kpage = allocate_page(PAL_USER | PAL_ZERO);
+
+	spte->type=SWAP;
+	spte->vaddr=pg_round_down(addr);
+	spte->writable=true;
+	spte->is_loaded=true;
+	insert_spte(&thread_current()->spt, spte);
+	kpage->spte=spte;
+  
+
+	if(!install_page(spte->vaddr, kpage->paddr, spte->writable))
+	{
+		free_page(kpage->paddr);
+		free(spte);
+		return false;
+	}
+
+	return true;
 }
