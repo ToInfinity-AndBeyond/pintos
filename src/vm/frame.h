@@ -9,10 +9,10 @@ struct lock clock_list_lock;
 struct list_elem *clock_elem;
 
 void clock_list_init(void);
-void add_page_to_clock_list(struct page* page);
-void del_page_from_clock_list(struct page *page);
+void add_page(struct page* page);
+void delte_page(struct page *page);
 
-void try_to_free_pages(enum palloc_flags alloc_flag);
-struct page *alloc_page(enum palloc_flags alloc_flag);
+void free_pages(enum palloc_flags alloc_flag);
+struct page *allocate_page(enum palloc_flags alloc_flag);
 void free_page(void *paddr);
-void _free_page(struct page *page);
+void free_page_helper(struct page *page);

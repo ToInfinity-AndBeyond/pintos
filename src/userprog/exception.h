@@ -8,7 +8,6 @@
 
 void exception_init (void);
 void exception_print_stats (void);
-bool verify_stack(void * , void* );
 
 
 #endif /* userprog/exception.h */
