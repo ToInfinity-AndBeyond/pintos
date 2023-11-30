@@ -1,10 +1,20 @@
 #include <hash.h>
 #include <list.h>
+#include "threads/thread.h"
+
+
+enum vm_page_type
+  {
+    SWAP,
+    FILE,
+    ZERO
+  };
 
 struct spt_entry{
-    uint8_t type; 
+    enum vm_page_type type; 
     void *vaddr;  
     bool writable;
+    bool pinned;
       
 
     bool is_loaded;  
@@ -26,6 +36,13 @@ struct mmap_entry{
     struct file * file; 
     struct list_elem elem; 
     struct list spte_list; 
+};
+
+struct page{
+    void *paddr;    
+    struct spt_entry *spte;   
+    struct thread *thread;  
+    struct list_elem clock_elem;  
 };
 
 

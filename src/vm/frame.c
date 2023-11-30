@@ -1,111 +1,92 @@
 #include "frame.h"
-#include "threads/palloc.h"
-#include "lib/debug.h"
-#include "timer.h"
 
-static struct hash frame_table;
-
-static struct lock frame_no_lock;
-
-unsigned frame_hash_func(const struct hash_elem *element, void *aux UNUSED)
+static struct list_elem* find_next_clock()
 {
-  return hash_int(hash_entry(element, struct frame_table_entry, helem)->frame_no);
-}
+    struct list_elem * next_elem = list_next(clock_elem);
 
-bool frame_less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED)
-{
-  struct frame_table_entry *entrya = hash_entry(a, struct frame_table_entry, helem);
-  struct frame_table_entry *entryb = hash_entry(b, struct frame_table_entry, helem);
+    if(list_empty(&clock_list))
+        return NULL;
 
-  return entrya->frame_no < entryb->frame_no;
-}
-
-// Frees the frame_table_entry which e is embedded within
-void frame_free_func(struct hash_elem *e, void *aux UNUSED)
-{
-  struct frame_table_entry *entry = hash_entry(e, struct frame_table_entry, helem);
-  palloc_free_page(entry->page);
-  free(entry);
-}
-
-static int allocate_frame_no(void)
-{
-  static next_frame_no = 1;
-
-  lock_acquire(&frame_no_lock);
-  int frame_no = next_frame_no++;
-  lock_release(&frame_no_lock);
-
-  return frame_no;
-}
-
-void frame_init(void)
-{
-  bool success = hash_init(&frame_table, frame_hash_func, frame_less_func, NULL);
-  if (!success) PANIC("Frame table could not be allocated");
-  lock_init(&frame_no_lock);
-}
-
-// Returns the frame_table_entry * with the corresponding frame_no
-struct frame_table_entry *frame_lookup(int frame_no)
-{
-  struct frame_table_entry f;
-  f.frame_no = frame_no;
-  struct hash_elem *e = hash_find(&frame_table, &f.helem);
-  return e != NULL ? hash_entry(e, struct frame_table_entry, helem) : NULL;
-}
-
-// If the frame_no already exists, removes and frees the frame_table_entry
-void frame_add(pid_t pid)
-{
-  struct frame_table_entry *frame = malloc(sizeof(struct frame_table_entry));
-  if (frame == NULL) PANIC("Frame entry could not be initialised");
-
-  *frame = (struct frame_table_entry) {
-    .frame_no = allocate_frame_no(),
-    .pid = pid,
-    .ticks = timer_ticks()
-  };
-
-  void *page = palloc_get_page(PAL_USER);
-  if (page == NULL) PANIC("Run out of frames");
-  frame->page = page;
-
-  struct hash_elem *e = hash_replace(&frame_table, &frame->helem);
-  if (e != NULL) frame_free_func(e, NULL);
-}
-
-// Deletes given frame_no from frame_table and frees it
-void frame_remove(int frame_no)
-{
-  struct frame_table_entry f;
-  f.frame_no = frame_no;
-  struct hash_elem *e = hash_delete(&frame_table, &f.helem);
-
-  if (e != NULL) frame_free_func(e, NULL);
-}
-
-void frame_remove_process(pid_t pid)
-{
-  struct hash_iterator i;
-
-  hash_first(&i, &frame_table);
-  while (hash_next(&i))
-  {
-    struct frame_table_entry *entry = hash_entry(hash_cur(&i), struct frame_table_entry, helem);
-    if (entry->pid == pid)
+    if(clock_elem == NULL || clock_elem == list_end(&clock_list) || next_elem == list_end(&clock_list))
     {
-      frame_remove(entry->frame_no);
+        return list_begin(&clock_list);
     }
-  }
+    else
+    {
+        return next_elem;
+    }
+    return clock_elem;
 }
 
-void frame_clear(void)
+void clock_list_init(void)
 {
-  hash_clear(&frame_table, frame_free_func);
+    list_init(&clock_list);
+    lock_init(&clock_list_lock);
+    clock_elem=NULL;
 }
 
-void frame_destroy(void)
+void add_page(struct page* page)
 {
-  hash_destroy(&frame_table, frame_free_func);
+    list_push_back(&clock_list, &(page->clock_elem));
+}
+
+void delete_page(struct page *page)
+{
+    if(&page->clock_elem==clock_elem) {
+        clock_elem = list_next(clock_elem);
+    }
+    list_remove(&page->clock_elem);
+}
+
+struct page *allocate_page(enum palloc_flags alloc_flag)
+{
+    lock_acquire(&clock_list_lock);
+    /* Allocate page using palloc_get_page(). */
+    uint8_t *kpage = palloc_get_page(alloc_flag);
+    while (kpage == NULL)
+    {
+        kpage=palloc_get_page(alloc_flag);
+    }
+
+    /* Initialize the struct page. */
+    struct page *page=malloc(sizeof(struct page));
+    page->paddr=kpage;
+    page->thread=thread_current();
+
+    /* Insert the page to the clock_list using add_page(). */
+    add_page(page);
+    lock_release(&clock_list_lock);
+
+    return page;
+}
+void free_page(void *paddr)
+{
+    lock_acquire(&clock_list_lock); 
+    struct page *page=NULL;
+
+    /* Search for the struct page corresponding to the physicall address paddr in the clock_list. */
+    struct list_elem *e = list_begin(&clock_list);
+    while (e != list_end(&clock_list)) {
+        struct page* free_page = list_entry(e, struct page, clock_elem);
+        if (free_page->paddr == paddr) {
+            page = free_page;
+            break;
+        }
+        e = list_next(e);
+    }
+
+    /* If page is not null, call free_page_helper(). */
+    if(page!=NULL)
+        free_page_helper (page);
+
+    lock_release(&clock_list_lock);
+}
+void free_page_helper (struct page *page)
+{
+    /* Delete from clock_list. */
+    delete_page(page);
+    /* Free the memory allocated to the struct page. */
+    pagedir_clear_page (page->thread->pagedir, pg_round_down(page->spte->vaddr));
+    palloc_free_page(page->paddr);
+    free(page);
 }

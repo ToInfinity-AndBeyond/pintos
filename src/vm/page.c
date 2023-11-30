@@ -9,6 +9,7 @@ static unsigned spt_hash_func(const struct hash_elem *e, void *aux)
 	struct spt_entry * spte = hash_entry(e, struct spt_entry, elem);
 	return hash_int(spte->vaddr);
 }
+
 /* Compare the vaddr values of the two input hash_elems. */ 
 static bool spt_less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux)
 {
@@ -62,7 +63,7 @@ struct spt_entry *find_spte(void *vaddr)
 	/* Get vaddr's page number using pg_round_down() function. */
 	search_entry.vaddr = pg_round_down(vaddr);
 
-	struct hash_elem* e=hash_find(&(cur->spt), &(search_entry.elem));
+	struct hash_elem* e= hash_find(&(cur->spt), &(search_entry.elem));
 
 	if(e!=NULL)
 		return hash_entry(e, struct spt_entry, elem);

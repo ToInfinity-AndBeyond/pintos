@@ -590,7 +590,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Create spt_entry spte suing malloc. */
       struct spt_entry *spte = malloc(sizeof(struct spt_entry));
       /* Set spt_entry's members. */
-      spte -> type = 
+      spte -> type = ZERO;
       spte -> vaddr = upage;
       spte -> writable = writable;
       spte -> is_loaded = false;
