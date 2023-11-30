@@ -21,7 +21,8 @@
 #include "threads/vaddr.h"
 #include "userprog/syscall.h"
 #include "vm/page.h"
-#include "frame.h"
+#include "vm/frame.h"
+#include "vm/swap.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -616,19 +617,34 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp) 
 {
-  uint8_t *kpage;
+  struct page *kpage;
+  void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
   bool success = false;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
-    {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE - 12;
-      else
-        palloc_free_page (kpage);
-    }
-  return success;
+  struct spt_entry *spte = malloc(sizeof(struct spt_entry));
+  if (spte == NULL)
+  {
+    return false;
+  }
+
+  kpage = allocate_page (PAL_USER | PAL_ZERO);
+  if (install_page(upage, kpage->paddr, true))
+  {
+    *esp = PHYS_BASE;
+    spte->type = SWAP;
+		spte->vaddr = upage;
+		spte->writable = true;
+		spte->is_loaded = true;
+
+    kpage->spte = spte;
+    insert_spte(&(thread_current() -> spt), spte);
+  }
+  else
+  {
+    free_page(kpage->paddr);
+    return false;
+  }
+  return true;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
