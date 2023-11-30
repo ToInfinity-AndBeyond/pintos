@@ -38,6 +38,48 @@ void delete_page(struct page *page)
     list_remove(&page->clock_elem);
 }
 
+/* When there's a shortage of physical pages, the clock algorithm is used to secure additional memory. */
+void free_pages(enum palloc_flags alloc_flag)
+{
+
+    struct page *page;
+    struct page *page_to_be_evicted;
+
+    clock_elem=find_next_clock();
+
+    page = list_entry(clock_elem, struct page, clock_elem);
+
+    while(page->spte->pinned || pagedir_is_accessed(page->thread->pagedir, page->spte->vaddr))
+    {
+        pagedir_set_accessed(page->thread->pagedir, page->spte->vaddr, false);
+        clock_elem=find_next_clock(); 
+        page = list_entry(clock_elem, struct page, clock_elem);
+    }
+    page_to_be_evicted = page;
+
+    switch(page_to_be_evicted->spte->type)
+    {
+        case ZERO:
+            if(pagedir_is_dirty(page_to_be_evicted->thread->pagedir, page_to_be_evicted->spte->vaddr))
+            {
+                page_to_be_evicted->spte->swap_slot = swap_out(page_to_be_evicted->kaddr);
+                page_to_be_evicted->spte->type=SWAP;
+            }
+            break;
+        case FILE:
+            if(pagedir_is_dirty(page_to_be_evicted->thread->pagedir, page_to_be_evicted->spte->vaddr))
+                file_write_at(page_to_be_evicted->spte->file, page_to_be_evicted->spte->vaddr, page_to_be_evicted->spte->read_bytes, page_to_be_evicted->spte->offset);
+            break;
+        case SWAP:
+            page_to_be_evicted->spte->swap_slot = swap_out(page_to_be_evicted->kaddr);
+            break;
+    }
+    
+    page_to_be_evicted->spte->is_loaded=false;
+
+    free_page_helper (page_to_be_evicted);
+}
+
 struct page *allocate_page(enum palloc_flags alloc_flag)
 {
     lock_acquire(&clock_list_lock);
