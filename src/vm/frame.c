@@ -42,7 +42,7 @@ void delete_page(struct page *page)
 }
 
 /* When there's a shortage of physical pages, the clock algorithm is used to secure additional memory. */
-void free_pages(enum palloc_flags alloc_flag)
+void evict_pages(enum palloc_flags alloc_flag)
 {
 
     struct page *page;
@@ -90,7 +90,7 @@ struct page *allocate_page(enum palloc_flags alloc_flag)
     uint8_t *kpage = palloc_get_page(alloc_flag);
     while (kpage == NULL)
     {
-        free_pages(alloc_flag);
+        evict_pages(alloc_flag);
         kpage=palloc_get_page(alloc_flag);
     }
 
