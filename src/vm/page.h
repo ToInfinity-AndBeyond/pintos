@@ -1,17 +1,21 @@
+#ifndef spt_PAGE_H
+#define spt_PAGE_H
+
 #include <hash.h>
 #include <list.h>
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 
 
-enum vm_page_type
+enum spt_page_type
   {
-    SWAP,
+    ZERO,
     FILE,
-    ZERO
+    SWAP
   };
 
 struct spt_entry{
-    enum vm_page_type type; 
+    enum spt_page_type type; 
     void *vaddr;  
     bool writable;
     bool pinned;
@@ -45,5 +49,14 @@ struct page{
     struct list_elem clock_elem;  
 };
 
+void spt_init(struct hash *spt);
+bool insert_spte(struct hash *spt, struct spt_entry *spte);
+bool delete_spte(struct hash *spt, struct spt_entry *spte);
+
+struct spt_entry *find_spte(void *vaddr);
+void spt_destroy(struct hash *spt);
+
+bool load_file(void *paddr, struct spt_entry *spte);
 
 
+#endif

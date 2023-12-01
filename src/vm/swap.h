@@ -1,3 +1,6 @@
+#ifndef VM_SWAP_H
+#define VM_SWAP_H
+
 #include <bitmap.h>
 #include <hash.h>
 #include <list.h>
@@ -7,3 +10,5 @@ struct bitmap *swap_bitmap;//swap영역의 특정 index영역이 사용중인지
 void swap_init();
 void swap_in(size_t used_index, void *kaddr);
 size_t swap_out(void *kaddr);
+
+#endif

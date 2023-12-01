@@ -32,7 +32,7 @@
 #include "tests/threads/tests.h"
 #endif
 #ifdef VM
-#include "devices/swap.h"
+#include "vm/swap.h"
 #include "vm/frame.h"
 #endif
 #ifdef FILESYS
@@ -134,7 +134,7 @@ main (void)
 #ifdef VM
   /* Initialise the swap disk */  
   swap_init ();
-  frame_init ();
+  clock_list_init ();
 #endif
 
   printf ("Boot complete.\n");

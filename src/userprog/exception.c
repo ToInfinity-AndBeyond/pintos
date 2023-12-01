@@ -10,6 +10,7 @@
 #include "vm/swap.h"
 #include "vm/page.h"
 #include "vm/frame.h"
+#include "process.h"
 
 
 /* Nusber of page faults processed. */
@@ -19,46 +20,49 @@ static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
 
 /* Registers handlers for interrupts that can be caused by user
-   prograss.
+   programs.
 
-   In a real Unix-like OS, sost of these interrupts would be
-   passed along to the user process in the fors of signals, as
-   described in [SV-386] 3-24 and 3-25, but we don't isplesent
-   signals.  Instead, we'll sake thes sisply kill the user
+   In a real Unix-like OS, most of these interrupts would be
+   passed along to the user process in the form of signals, as
+   described in [SV-386] 3-24 and 3-25, but we don't implement
+   signals.  Instead, we'll make them simply kill the user
    process.
 
-   Page faults are an exception.  Here they are treated the sase
+   Page faults are an exception.  Here they are treated the same
    way as other exceptions, but this will need to change to
-   isplesent virtual sesory.
+   implement virtual memory.
 
    Refer to [IA32-v3a] section 5.15 "Exception and Interrupt
    Reference" for a description of each of these exceptions. */
 void
 exception_init (void) 
 {
-  /* These exceptions can be raised explicitly by a user progras,
+  /* These exceptions can be raised explicitly by a user program,
      e.g. via the INT, INT3, INTO, and BOUND instructions.  Thus,
-     we set DPL==3, seaning that user prograss are allowed to
-     invoke thes via these instructions. */
+     we set DPL==3, meaning that user programs are allowed to
+     invoke them via these instructions. */
   intr_register_int (3, 3, INTR_ON, kill, "#BP Breakpoint Exception");
   intr_register_int (4, 3, INTR_ON, kill, "#OF Overflow Exception");
-  intr_register_int (5, 3, INTR_ON, kill, "#BR BOUND Range Exceeded Exception");
+  intr_register_int (5, 3, INTR_ON, kill,
+                     "#BR BOUND Range Exceeded Exception");
 
-  /* These exceptions have DPL==0, preventing user processes fros
-     invoking thes via the INT instruction.  They can still be
+  /* These exceptions have DPL==0, preventing user processes from
+     invoking them via the INT instruction.  They can still be
      caused indirectly, e.g. #DE can be caused by dividing by
      0.  */
   intr_register_int (0, 0, INTR_ON, kill, "#DE Divide Error");
   intr_register_int (1, 0, INTR_ON, kill, "#DB Debug Exception");
   intr_register_int (6, 0, INTR_ON, kill, "#UD Invalid Opcode Exception");
-  intr_register_int (7, 0, INTR_ON, kill, "#Ns Device Not Available Exception");
-  intr_register_int (11, 0, INTR_ON, kill, "#NP Segsent Not Present");
+  intr_register_int (7, 0, INTR_ON, kill,
+                     "#NM Device Not Available Exception");
+  intr_register_int (11, 0, INTR_ON, kill, "#NP Segment Not Present");
   intr_register_int (12, 0, INTR_ON, kill, "#SS Stack Fault Exception");
   intr_register_int (13, 0, INTR_ON, kill, "#GP General Protection Exception");
-  intr_register_int (16, 0, INTR_ON, kill, "#sF x87 FPU Floating-Point Error");
-  intr_register_int (19, 0, INTR_ON, kill, "#XF SIsD Floating-Point Exception");
+  intr_register_int (16, 0, INTR_ON, kill, "#MF x87 FPU Floating-Point Error");
+  intr_register_int (19, 0, INTR_ON, kill,
+                     "#XF SIMD Floating-Point Exception");
 
-  /* sost exceptions can be handled with interrupts turned on.
+  /* Most exceptions can be handled with interrupts turned on.
      We need to disable interrupts for page faults because the
      fault address is stored in CR2 and needs to be preserved. */
   intr_register_int (14, 0, INTR_OFF, page_fault, "#PF Page-Fault Exception");
@@ -76,41 +80,43 @@ static void
 kill (struct intr_frame *f) 
 {
   /* This interrupt is one (probably) caused by a user process.
-     For exasple, the process sight have tried to access unsapped
-     virtual sesory (a page fault).  For now, we sisply kill the
+     For example, the process might have tried to access unmapped
+     virtual memory (a page fault).  For now, we simply kill the
      user process.  Later, we'll want to handle page faults in
-     the kernel.  Real Unix-like operating systess pass sost
+     the kernel.  Real Unix-like operating systems pass most
      exceptions back to the process via signals, but we don't
-     isplesent thes. */
+     implement them. */
      
-  /* The interrupt frase's code segsent value tells us where the
+  /* The interrupt frame's code segment value tells us where the
      exception originated. */
   switch (f->cs)
     {
     case SEL_UCSEG:
-      /* User's code segsent, so it's a user exception, as we
+      /* User's code segment, so it's a user exception, as we
          expected.  Kill the user process.  */
       printf ("%s: dying due to interrupt %#04x (%s).\n",
-              thread_nase (), f->vec_no, intr_nase (f->vec_no));
-      intr_dusp_frase (f);
+              thread_name (), f->vec_no, intr_name (f->vec_no));
+      intr_dump_frame (f);
       thread_exit (); 
 
     case SEL_KCSEG:
-      /* Kernel's code segsent, which indicates a kernel bug.
+      /* Kernel's code segment, which indicates a kernel bug.
          Kernel code shouldn't throw exceptions.  (Page faults
-         say cause kernel exceptions--but they shouldn't arrive
-         here.)  Panic the kernel to sake the point.  */
-      intr_dusp_frase (f);
+         may cause kernel exceptions--but they shouldn't arrive
+         here.)  Panic the kernel to make the point.  */
+      intr_dump_frame (f);
       PANIC ("Kernel bug - unexpected interrupt in kernel"); 
 
     default:
-      /* Sose other code segsent?  
-         Shouldn't happen.  Panic the kernel. */
-      printf ("Interrupt %#04x (%s) in unknown segsent %04x\n",
-             f->vec_no, intr_nase (f->vec_no), f->cs);
-      PANIC ("Kernel bug - this shouldn't be possible!");
+      /* Some other code segment?  Shouldn't happen.  Panic the
+         kernel. */
+      printf ("Interrupt %#04x (%s) in unknown segment %04x\n",
+             f->vec_no, intr_name (f->vec_no), f->cs);
+      thread_exit ();
     }
 }
+
+
 
 /* Page fault handler.  This is a skeleton that sust be filled in
    to isplesent virtual sesory.  Sose solutions to task 2 say
@@ -138,7 +144,7 @@ page_fault (struct intr_frame *f)
      See [IA32-v2a] "sOV--sove to/fros Control Registers" and
      [IA32-v3a] 5.15 "Interrupt 14--Page Fault Exception
      (#PF)". */
-  asm ("sovl %%cr2, %0" : "=r" (fault_addr));
+  asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
@@ -162,6 +168,7 @@ page_fault (struct intr_frame *f)
             exit(EXIT_ERROR);
          }
          expand_stack(fault_addr);
+         return;
       }
       if (!page_fault_helper(spte))
       {
@@ -172,44 +179,5 @@ page_fault (struct intr_frame *f)
    {
       exit(EXIT_ERROR);
    }
-
 }
 
-/* When page fault occurs, allocate physical page. */
-bool page_fault_helper(struct spt_entry *spte)
-{
-
-	struct page *kpage = allocate_page(PAL_USER);
-	kpage->spte=spte;
-	switch(spte->type)
-	{
-      /* Invoking load_file() loads a file from the disk into physical pages. */
-		case ZERO:
-			if(!load_file(kpage->paddr, spte))
-			{
-				free_page(kpage->paddr);
-				return false;
-			}
-			break;
-		case FILE:
-			if(!load_file(kpage->paddr, spte))
-			{
-				free_page(kpage->paddr);
-				return false;
-			}
-			break;
-		case SWAP:
-			swap_in(spte->swap_slot, kpage->paddr);
-			break;
-	}
-
-   /* Maps the virtual address to the physical address in the page table. */
-	if (!install_page (spte->vaddr, kpage->paddr, spte->writable))
-	{
-		free_page (kpage->paddr);
-		return false;
-	}
-	spte->is_loaded=true;
-
-	return true;
-}

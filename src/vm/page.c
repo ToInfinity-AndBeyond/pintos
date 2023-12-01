@@ -33,6 +33,7 @@ void spt_init(struct hash *spt)
 /* Insert spt_entry using hash_insert() function. */
 bool insert_spte(struct hash *spt, struct spt_entry *spte)
 {
+	spte -> pinned = false;
 	struct hash_elem* elem = hash_insert (spt, &(spte->elem));
 	if(elem ==NULL)
 		return true;
@@ -79,15 +80,11 @@ void spt_destroy(struct hash *spt)
 /* Loads pages existing on the disk into physical memory. */
 bool load_file(void* paddr, struct spt_entry *spte){
 
-    ASSERT (paddr != NULL);
-    ASSERT (spte != NULL);
-    ASSERT (spte->type == ZERO || spte->type == FILE);
-   
-    uint32_t file_at = file_read_at (spte->file, paddr, spte->read_bytes, spte->offset);
-    if (file_at != (uint32_t) spte->read_bytes)
-    {
-      return false;
-    }
+    file_seek(spte->file, spte->offset);
+    if(file_read (spte->file, paddr, spte->read_bytes) != (int)(spte->read_bytes))
+	{
+		return false;
+	}
     memset (paddr + spte->read_bytes, 0, spte->zero_bytes);
   	return true;
 }

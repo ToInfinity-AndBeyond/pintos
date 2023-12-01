@@ -2,18 +2,21 @@
 
 static struct list_elem* find_next_clock()
 {
-    struct list_elem * next_elem = list_next(clock_elem);
-
     if(list_empty(&clock_list))
         return NULL;
 
-    if(clock_elem == NULL || clock_elem == list_end(&clock_list) || next_elem == list_end(&clock_list))
+    if(clock_elem == NULL || clock_elem == list_end(&clock_list))
+    {
+        return list_begin(&clock_list);
+    }
+
+    if (list_next(clock_elem) == list_end(&clock_list))
     {
         return list_begin(&clock_list);
     }
     else
     {
-        return next_elem;
+        return list_next(clock_elem);
     }
     return clock_elem;
 }
@@ -62,7 +65,7 @@ void free_pages(enum palloc_flags alloc_flag)
         case ZERO:
             if(pagedir_is_dirty(page_to_be_evicted->thread->pagedir, page_to_be_evicted->spte->vaddr))
             {
-                page_to_be_evicted->spte->swap_slot = swap_out(page_to_be_evicted->kaddr);
+                page_to_be_evicted->spte->swap_slot = swap_out(page_to_be_evicted->paddr);
                 page_to_be_evicted->spte->type=SWAP;
             }
             break;
@@ -71,7 +74,7 @@ void free_pages(enum palloc_flags alloc_flag)
                 file_write_at(page_to_be_evicted->spte->file, page_to_be_evicted->spte->vaddr, page_to_be_evicted->spte->read_bytes, page_to_be_evicted->spte->offset);
             break;
         case SWAP:
-            page_to_be_evicted->spte->swap_slot = swap_out(page_to_be_evicted->kaddr);
+            page_to_be_evicted->spte->swap_slot = swap_out(page_to_be_evicted->paddr);
             break;
     }
     
@@ -87,6 +90,7 @@ struct page *allocate_page(enum palloc_flags alloc_flag)
     uint8_t *kpage = palloc_get_page(alloc_flag);
     while (kpage == NULL)
     {
+        free_pages(alloc_flag);
         kpage=palloc_get_page(alloc_flag);
     }
 
@@ -116,6 +120,7 @@ void free_page(void *paddr)
         }
         e = list_next(e);
     }
+    
 
     /* If page is not null, call free_page_helper(). */
     if(page!=NULL)
