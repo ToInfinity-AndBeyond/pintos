@@ -711,3 +711,42 @@ bool expand_stack(void *addr)
 
 	return true;
 }
+
+/* When page fault occurs, allocate physical page. */
+bool page_fault_helper(struct spt_entry *spte)
+{
+
+  struct page *kpage = allocate_page(PAL_USER);
+  kpage->spte=spte;
+  switch(spte->type)
+  {
+      /* Invoking load_file() loads a file from the disk into physical pages. */
+    case ZERO:
+      if(!load_file(kpage->paddr, spte))
+      {
+        free_page(kpage->paddr);
+        return false;
+      }
+      break;
+    case FILE:
+      if(!load_file(kpage->paddr, spte))
+      {
+        free_page(kpage->paddr);
+        return false;
+      }
+      break;
+    case SWAP:
+      swap_in(spte->swap_slot, kpage->paddr);
+      break;
+  }
+
+   /* Maps the virtual address to the physical address in the page table. */
+  if (!install_page (spte->vaddr, kpage->paddr, spte->writable))
+  {
+    free_page (kpage->paddr);
+    return false;
+  }
+  spte->is_loaded=true;
+
+  return true;
+}
