@@ -596,9 +596,17 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
          and zero the final PAGE_ZERO_BYTES bytes. */
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
-      
+  
+      struct spt_entry *spte;
+
       /* Create spt_entry spte suing malloc. */
-      struct spt_entry *spte = malloc(sizeof(struct spt_entry));
+      if (!find_spte(upage))
+      {
+        spte = malloc(sizeof(struct spt_entry));
+      } else {
+        spte = find_spte(upage);
+      }
+      
       /* Set spt_entry's members. */
       spte -> type = ZERO;
       spte -> vaddr = upage;
