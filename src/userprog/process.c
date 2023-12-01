@@ -72,7 +72,9 @@ process_execute (const char *file_name)
   strlcpy(thread_name, file_name, i + 1);
 
   /* Checks if file that is opened using thread_name is NULL*/
+  lock_acquire(&filesys_lock);
   struct file *file = filesys_open(thread_name);
+  lock_release(&filesys_lock);
   if (file == NULL)
   {
     return -1;
