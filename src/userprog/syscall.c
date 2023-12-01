@@ -11,6 +11,9 @@
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
 #include "devices/input.h"
+#include "vm/frame.h"
+#include "vm/page.h"
+#include "vm/swap.h"
 
 #define STDIN 0
 #define STDOUT 1
@@ -33,10 +36,13 @@ uint32_t sys_write (uint32_t *esp);
 uint32_t sys_seek (uint32_t *esp);
 uint32_t sys_tell (uint32_t *esp);
 uint32_t sys_close (uint32_t *esp);
+uint32_t sys_mmap (uint32_t *esp);
+uint32_t sys_munmap (uint32_t *esp);
+
 
 void exit (int status);
 
-static const int syscall_args[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
+static const int syscall_args[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1};
 static uint32_t (*syscall_func[]) (uint32_t *esp) = 
 {
   sys_halt,
@@ -51,7 +57,9 @@ static uint32_t (*syscall_func[]) (uint32_t *esp) =
   sys_write,
   sys_seek,
   sys_tell,
-  sys_close
+  sys_close,
+  sys_mmap,
+  sys_munmap
 };
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
@@ -306,4 +314,94 @@ uint32_t sys_close (uint32_t *esp)
   file_close(fp);
   lock_release(&filesys_lock);
   return VOID_RET;
+}
+
+/* Load file data into memory by demand paging, 
+   return the mapid upon success, return -1 upon failure. */
+uint32_t sys_mmap(uint32_t *esp)
+{
+  int fd = (int) esp[1];
+  void *addr = (void*) esp[2];
+  int mapid;
+  struct file *fp = thread_current() -> fd[fd];
+  size_t offset = 0;
+  struct mmap_entry *mmape = malloc(sizeof(struct mmap_entry));
+
+  /* Invalid cases. */
+  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr || find_spte(addr) || mmape == NULL)
+  {
+    return -1;
+  }
+
+  mapid = thread_current() -> next_mapid++;
+  mmape->mapid = mapid;
+  lock_acquire(&filesys_lock);
+  mmape->file = file_reopen(fp);
+  lock_release(&filesys_lock);
+  list_init (&mmape->spte_list);
+  list_push_back(&thread_current() -> mmap_list, &mmape->elem);
+
+  /* spt_entry Initialization. */
+  int read_bytes_size = file_length(mmape -> file);
+  while(read_bytes_size > 0)
+  {
+    size_t page_read_bytes = read_bytes_size < PGSIZE ? read_bytes_size : PGSIZE;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
+    
+    struct spt_entry *spte = malloc(sizeof(struct spt_entry));
+    spte->type = FILE;
+    spte->vaddr = addr;
+    spte->writable = true;
+    spte->is_loaded = false;
+    spte->file = mmape->file;
+    spte->offset = offset;
+    spte->read_bytes = page_read_bytes;
+    spte->zero_bytes = page_zero_bytes;
+    list_push_back(&(mmape->spte_list), &(spte->mmap_elem));
+    insert_spte(&thread_current() -> spt, spte);
+
+    addr += PGSIZE;
+    offset += page_read_bytes;
+    read_bytes_size -= page_read_bytes;
+  }
+  return mapid;
+}
+
+/* Release all spt entries in mmap_list that have a corresponding mapid */
+uint32_t sys_munmap(uint32_t *esp)
+{
+  int mapid = (int)esp[1];
+
+  struct thread *cur= thread_current();
+
+  struct mmap_entry *mmape=NULL;
+  for (struct list_elem *e = list_begin(&cur->mmap_list); e != list_end(&cur->mmap_list); e = list_next(e)) {
+    struct mmap_entry *mmap_entry = list_entry(e, struct mmap_entry, elem);
+    if (mmap_entry->mapid == mapid) {
+      mmape = mmap_entry;
+      break;
+    }
+  }
+  if (mmape == NULL)
+    return VOID_RET;
+
+  /* Delete spt_entry, page table entry, mmap_file. */
+  for(struct list_elem *e = list_begin(&mmape->spte_list); e != list_end(&mmape->spte_list);)
+  {
+
+    struct list_elem *next_e = list_next(e);
+
+    struct spt_entry *spte = list_entry(e, struct spt_entry, mmap_elem);
+    if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
+      file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
+      }
+      spte->is_loaded = false;
+      list_remove(e);
+
+      delete_spte(&thread_current()->spt, spte);
+      e=next_e;
+    }
+    list_remove(&mmape->elem);
+    free(mmape);
+
 }
