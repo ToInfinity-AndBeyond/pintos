@@ -176,6 +176,7 @@ start_process (void *file_name_)
     }
   }
   strlcpy(thread_name, file_name, i + 1);
+  spt_init(&(thread_current() -> spt));
   
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -254,6 +255,8 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  spt_destroy(&cur->spt);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -416,13 +419,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+  lock_acquire(&filesys_lock);
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
     {
+      lock_release(&filesys_lock);
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
+    lock_acquire(&filesys_lock);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -577,6 +583,7 @@ static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
+  struct file* reopen_file = file_reopen(file);
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
@@ -597,7 +604,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       spte -> vaddr = upage;
       spte -> writable = writable;
       spte -> is_loaded = false;
-      spte -> file = file;
+      spte -> file = reopen_file;
       spte -> offset = ofs;
       spte -> read_bytes = page_read_bytes;
       spte -> zero_bytes = page_zero_bytes;

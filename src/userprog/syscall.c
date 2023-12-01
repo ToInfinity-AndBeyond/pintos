@@ -36,7 +36,6 @@ uint32_t sys_close (uint32_t *esp);
 
 void exit (int status);
 
-static struct lock filesys_lock;
 static const int syscall_args[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
 static uint32_t (*syscall_func[]) (uint32_t *esp) = 
 {
