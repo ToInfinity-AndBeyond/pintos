@@ -114,6 +114,8 @@ struct thread
 
 #ifdef VM
   struct hash spt;
+  struct list mmap_list; 
+  int next_mapid;
 #endif
 
     /* Owned by thread.c. */

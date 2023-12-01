@@ -734,6 +734,10 @@ init_thread(struct thread *t, const char *name, int priority, int nice, real rec
   {
     t -> fd[i] = NULL;
   }
+
+  /* Initialize mmap_list and next_mapid. */
+  list_init(&(t->mmap_list));
+  t->next_mapid=1;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
