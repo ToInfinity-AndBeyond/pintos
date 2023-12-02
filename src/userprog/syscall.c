@@ -325,10 +325,17 @@ uint32_t sys_mmap(uint32_t *esp)
   int mapid;
   struct file *fp = thread_current() -> fd[fd];
   size_t offset = 0;
-  struct mmap_entry *mmape = malloc(sizeof(struct mmap_entry));
 
   /* Invalid cases. */
-  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr || find_spte(addr) || mmape == NULL)
+  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr || find_spte(addr))
+  {
+    return -1;
+  }
+
+  /* Initialize mmap_entry, and if failed, return -1
+     This is done separately from the invalid cases, as mmape must be freed */
+  struct mmap_entry *mmape = malloc(sizeof(struct mmap_entry));
+  if (mmape == NULL) 
   {
     return -1;
   }
