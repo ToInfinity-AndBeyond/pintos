@@ -7,6 +7,7 @@
 #include "vm/page.h"
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
+#include "devices/swap.h"
 
 
 struct list clock_list;

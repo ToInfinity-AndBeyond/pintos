@@ -42,6 +42,7 @@ struct mmap_entry{
     struct list spte_list; 
 };
 
+// put hash_elem to find the hash interface
 struct page{
     void *paddr;    
     struct spt_entry *spte;   
