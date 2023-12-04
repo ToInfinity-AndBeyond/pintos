@@ -243,6 +243,7 @@ process_wait (tid_t child_tid UNUSED)
          This prevents the parent from waiting multiple times on the same child */
       exit_status = r->exit_status;
       list_remove(&r->elem);
+      free(r);
       return exit_status;
     }
   }
