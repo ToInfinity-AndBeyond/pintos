@@ -13,7 +13,7 @@
 #include "devices/input.h"
 #include "vm/frame.h"
 #include "vm/page.h"
-#include "vm/swap.h"
+#include "devices/swap.h"
 
 #define STDIN 0
 #define STDOUT 1
@@ -64,10 +64,10 @@ static uint32_t (*syscall_func[]) (uint32_t *esp) =
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
-void
+static void
 check_spte_address(void *str, unsigned size, void *esp)
 {
-    for (int i = 0; i < size; i++)
+    for (uint32_t i = 0; i < size; i++)
     {
         if (!is_user_vaddr(str + i))
         {
@@ -281,7 +281,7 @@ uint32_t sys_write (uint32_t *esp)
   int fd = (int) esp[1];
   const void *buffer = (const void *) esp[2];
   unsigned size = (unsigned) esp[3];
-  check_spte_address(buffer, size, esp);
+  check_spte_address((void *) buffer, size, esp);
 
   /* If fd == STDOUT, writes to the console using putbuf(). */
   if (fd == STDOUT) 

@@ -7,7 +7,7 @@
 #include "threads/vaddr.h"
 #include "userprog/syscall.h"
 #include "threads/palloc.h"
-#include "vm/swap.h"
+#include "devices/swap.h"
 #include "vm/page.h"
 #include "vm/frame.h"
 #include "process.h"

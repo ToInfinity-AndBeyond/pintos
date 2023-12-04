@@ -2,7 +2,6 @@
 #include "threads/malloc.h"
 #include "userprog/pagedir.h"
 #include "filesys/file.h"
-#include "swap.h"
 
 static struct list_elem* find_next_clock(void)
 {
