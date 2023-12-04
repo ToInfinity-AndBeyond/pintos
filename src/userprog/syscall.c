@@ -65,6 +65,30 @@ static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
 void
+check_spte_address(void *str, unsigned size, void *esp)
+{
+    for (int i = 0; i < size; i++)
+    {
+        if (!is_user_vaddr(str + i))
+        {
+            exit(EXIT_ERROR);
+        }
+
+        struct spt_entry *spte = find_spte(str + i);
+        if (spte == NULL)
+        {
+            if (!check_stack_esp(str + i, esp))
+                exit(EXIT_ERROR);
+            expand_stack(str + i);
+            spte = find_spte(str + i);
+        }
+
+        if (spte == NULL)
+            exit(EXIT_ERROR);
+    }
+}
+
+void
 syscall_init (void) 
 {
   /* When syscall is initialised, lock_init. */
@@ -140,6 +164,7 @@ uint32_t sys_exec (uint32_t *esp)
 {
   const char *cmd_line = (const char *) esp[1];
 
+
   return process_execute(cmd_line);
 }
 
@@ -163,6 +188,7 @@ uint32_t sys_create (uint32_t *esp)
 uint32_t sys_remove (uint32_t *esp)
 {
   const char *file = (const char *) esp[1];
+  
 
   /* If file name is null, terminate. */
   if (file == NULL) 
@@ -179,6 +205,7 @@ uint32_t sys_remove (uint32_t *esp)
 uint32_t sys_open (uint32_t *esp)
 {
   const char *file = (const char *) esp[1];
+
 
   /* If file name is null, terminate. */
   if (file == NULL)
@@ -226,6 +253,7 @@ uint32_t sys_read (uint32_t *esp)
   int fd = (int) esp[1];
   void *buffer = (void *) esp[2];
   unsigned size = (unsigned) esp[3];
+  check_spte_address(buffer, size, esp);
 
   /* If fd == STDIN, reads from the keyboard using input_getc() */
   if (fd == STDIN) {
@@ -253,6 +281,7 @@ uint32_t sys_write (uint32_t *esp)
   int fd = (int) esp[1];
   const void *buffer = (const void *) esp[2];
   unsigned size = (unsigned) esp[3];
+  check_spte_address(buffer, size, esp);
 
   /* If fd == STDOUT, writes to the console using putbuf(). */
   if (fd == STDOUT) 
