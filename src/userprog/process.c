@@ -22,7 +22,7 @@
 #include "userprog/syscall.h"
 #include "vm/page.h"
 #include "vm/frame.h"
-#include "vm/swap.h"
+#include "devices/swap.h"
 
 #define LIMIT_STACK_SIZE 8*1024*1024
 #define ADDRESS_SIZE 32
@@ -776,7 +776,7 @@ bool page_fault_helper(struct spt_entry *spte)
       }
       break;
     case SWAP:
-      swap_in(spte->swap_slot, kpage->paddr);
+      swap_in(kpage->paddr, spte->swap_slot);
       break;
   }
 

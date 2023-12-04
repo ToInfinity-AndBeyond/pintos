@@ -32,7 +32,7 @@
 #include "tests/threads/tests.h"
 #endif
 #ifdef VM
-#include "vm/swap.h"
+#include "devices/swap.h"
 #include "vm/frame.h"
 #endif
 #ifdef FILESYS
