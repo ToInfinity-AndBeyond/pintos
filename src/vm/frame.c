@@ -105,6 +105,7 @@ struct page *allocate_page(enum palloc_flags alloc_flag)
 
     return page;
 }
+//on the page
 void free_page(void *paddr)
 {
     lock_acquire(&clock_list_lock); 
