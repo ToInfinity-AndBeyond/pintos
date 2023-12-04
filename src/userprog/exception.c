@@ -152,23 +152,30 @@ page_fault (struct intr_frame *f)
   /* Count page faults. */
   page_fault_cnt++;
 
-  /* Detersine cause. */
+  /* Determine cause. */
   not_present = (f->error_code & PF_P) == 0;
 //   write = (f->error_code & PF_W) != 0;
 //   user = (f->error_code & PF_U) != 0;
+
+   /* Causes of page_fault not_present
+      1. Accessing invalid page           -> exit(-1)
+      2. Stack expansion is happening     -> give a new page for the stack
+      3. Page is in the supplemental page table and 
+         has not been put into the actual page table -> Refer spte for a new page */
 
    if (not_present)
    {
       struct spt_entry *spte = find_spte(fault_addr);
       if (spte == NULL)
       {
+         /* If not in the supplemental page table, check if it is a stack */
          if (!check_stack_esp(fault_addr, f->esp))
-         {
             exit(EXIT_ERROR);
-         }
-         expand_stack(fault_addr);
+         else 
+            expand_stack(fault_addr);
          return;
       }
+
       if (!page_fault_helper(spte))
       {
          exit(EXIT_ERROR);
