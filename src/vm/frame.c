@@ -1,6 +1,10 @@
 #include "frame.h"
+#include "threads/malloc.h"
+#include "userprog/pagedir.h"
+#include "filesys/file.h"
+#include "swap.h"
 
-static struct list_elem* find_next_clock()
+static struct list_elem* find_next_clock(void)
 {
     if(list_empty(&clock_list))
         return NULL;
@@ -42,7 +46,7 @@ void delete_page(struct page *page)
 }
 
 /* When there's a shortage of physical pages, the clock algorithm is used to secure additional memory. */
-void evict_pages(enum palloc_flags alloc_flag)
+void evict_pages(void)
 {
 
     struct page *page;
@@ -90,7 +94,7 @@ struct page *allocate_page(enum palloc_flags alloc_flag)
     uint8_t *kpage = palloc_get_page(alloc_flag);
     while (kpage == NULL)
     {
-        evict_pages(alloc_flag);
+        evict_pages();
         kpage=palloc_get_page(alloc_flag);
     }
 

@@ -328,7 +328,7 @@ uint32_t sys_mmap(uint32_t *esp)
   struct mmap_entry *mmape = malloc(sizeof(struct mmap_entry));
 
   /* Invalid cases. */
-  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr || find_spte(addr) || mmape == NULL)
+  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr(addr) || find_spte(addr) || mmape == NULL)
   {
     return -1;
   }
@@ -388,20 +388,20 @@ uint32_t sys_munmap(uint32_t *esp)
   /* Delete spt_entry, page table entry, mmap_file. */
   for(struct list_elem *e = list_begin(&mmape->spte_list); e != list_end(&mmape->spte_list);)
   {
-
     struct list_elem *next_e = list_next(e);
 
     struct spt_entry *spte = list_entry(e, struct spt_entry, mmap_elem);
-    if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
+    if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr))
+    {
       file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
-      }
-      spte->is_loaded = false;
-      list_remove(e);
-
-      delete_spte(&thread_current()->spt, spte);
-      e=next_e;
     }
-    list_remove(&mmape->elem);
-    free(mmape);
+    spte->is_loaded = false;
+    list_remove(e);
 
+    delete_spte(&thread_current()->spt, spte);
+    e=next_e;
+  }
+  list_remove(&mmape->elem);
+  free(mmape);
+  return VOID_RET;
 }
