@@ -2,6 +2,7 @@
 #include "threads/malloc.h"
 #include "userprog/pagedir.h"
 #include "filesys/file.h"
+#include "lib/kernel/bitmap.h"
 
 static struct list_elem* find_next_clock(void)
 {
@@ -68,7 +69,12 @@ void evict_pages(void)
         case ZERO:
             if(pagedir_is_dirty(page_to_be_evicted->thread->pagedir, page_to_be_evicted->spte->vaddr))
             {
-                page_to_be_evicted->spte->swap_slot = swap_out(page_to_be_evicted->paddr);
+                size_t swap_slot = swap_out(page_to_be_evicted->paddr);
+                if (swap_slot == BITMAP_ERROR) {
+                    PANIC("Ran out of swap slots");
+                }
+
+                page_to_be_evicted->spte->swap_slot = swap_slot;
                 page_to_be_evicted->spte->type=SWAP;
             }
             break;
