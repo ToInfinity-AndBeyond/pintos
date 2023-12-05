@@ -1,6 +1,10 @@
 #include "frame.h"
+#include "threads/malloc.h"
+#include "userprog/pagedir.h"
+#include "filesys/file.h"
+#include "lib/kernel/bitmap.h"
 
-static struct list_elem* find_next_clock()
+static struct list_elem* find_next_clock(void)
 {
     if(list_empty(&clock_list))
         return NULL;
@@ -42,7 +46,7 @@ void delete_page(struct page *page)
 }
 
 /* When there's a shortage of physical pages, the clock algorithm is used to secure additional memory. */
-void evict_pages(enum palloc_flags alloc_flag)
+void evict_pages(void)
 {
 
     struct page *page;
@@ -65,7 +69,12 @@ void evict_pages(enum palloc_flags alloc_flag)
         case ZERO:
             if(pagedir_is_dirty(page_to_be_evicted->thread->pagedir, page_to_be_evicted->spte->vaddr))
             {
-                page_to_be_evicted->spte->swap_slot = swap_out(page_to_be_evicted->paddr);
+                size_t swap_slot = swap_out(page_to_be_evicted->paddr);
+                if (swap_slot == BITMAP_ERROR) {
+                    PANIC("Ran out of swap slots");
+                }
+
+                page_to_be_evicted->spte->swap_slot = swap_slot;
                 page_to_be_evicted->spte->type=SWAP;
             }
             break;
@@ -90,7 +99,7 @@ struct page *allocate_page(enum palloc_flags alloc_flag)
     uint8_t *kpage = palloc_get_page(alloc_flag);
     while (kpage == NULL)
     {
-        evict_pages(alloc_flag);
+        evict_pages();
         kpage=palloc_get_page(alloc_flag);
     }
 

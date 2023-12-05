@@ -64,10 +64,10 @@ static uint32_t (*syscall_func[]) (uint32_t *esp) =
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
-void
+static void
 check_spte_address(void *str, unsigned size, void *esp)
 {
-    for (int i = 0; i < size; i++)
+    for (uint32_t i = 0; i < size; i++)
     {
         if (!is_user_vaddr(str + i))
         {
@@ -281,7 +281,7 @@ uint32_t sys_write (uint32_t *esp)
   int fd = (int) esp[1];
   const void *buffer = (const void *) esp[2];
   unsigned size = (unsigned) esp[3];
-  check_spte_address(buffer, size, esp);
+  check_spte_address((void *) buffer, size, esp);
 
   /* If fd == STDOUT, writes to the console using putbuf(). */
   if (fd == STDOUT) 
@@ -356,7 +356,7 @@ uint32_t sys_mmap(uint32_t *esp)
   size_t offset = 0;
 
   /* Invalid cases. */
-  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr || find_spte(addr))
+  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr(addr) || find_spte(addr))
   {
     return -1;
   }
@@ -424,20 +424,20 @@ uint32_t sys_munmap(uint32_t *esp)
   /* Delete spt_entry, page table entry, mmap_file. */
   for(struct list_elem *e = list_begin(&mmape->spte_list); e != list_end(&mmape->spte_list);)
   {
-
     struct list_elem *next_e = list_next(e);
 
     struct spt_entry *spte = list_entry(e, struct spt_entry, mmap_elem);
-    if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
+    if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr))
+    {
       file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
-      }
-      spte->is_loaded = false;
-      list_remove(e);
-
-      delete_spte(&thread_current()->spt, spte);
-      e=next_e;
     }
-    list_remove(&mmape->elem);
-    free(mmape);
+    spte->is_loaded = false;
+    list_remove(e);
 
+    delete_spte(&thread_current()->spt, spte);
+    e=next_e;
+  }
+  list_remove(&mmape->elem);
+  free(mmape);
+  return VOID_RET;
 }

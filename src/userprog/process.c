@@ -20,7 +20,6 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/syscall.h"
-#include "vm/page.h"
 #include "vm/frame.h"
 #include "devices/swap.h"
 
@@ -668,7 +667,6 @@ setup_stack (void **esp)
 {
   struct page *kpage;
   void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
-  bool success = false;
 
   struct spt_entry *spte = malloc(sizeof(struct spt_entry));
   if (spte == NULL)

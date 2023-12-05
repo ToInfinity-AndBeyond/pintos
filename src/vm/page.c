@@ -1,25 +1,27 @@
 #include "vm/page.h"
 #include "vm/frame.h"
-
-/* lock? */
+#include "lib/string.h"
+#include "filesys/file.h"
+#include "userprog/pagedir.h"
+#include "threads/malloc.h"
 
 /* Using the vaddr of spt_entry as an argument, 
    return the hash value by using the hash_int() function. */
-static unsigned spt_hash_func(const struct hash_elem *e, void *aux)
+static unsigned spt_hash_func(const struct hash_elem *e, void *aux UNUSED)
 {
 	struct spt_entry * spte = hash_entry(e, struct spt_entry, elem);
-	return hash_int(spte->vaddr);
+	return hash_int((int) spte->vaddr);
 }
 
 /* Compare the vaddr values of the two input hash_elems. */ 
-static bool spt_less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux)
+static bool spt_less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED)
 {
 	struct spt_entry *spte_a=hash_entry(a, struct spt_entry, elem);
 	struct spt_entry *spte_b=hash_entry(b, struct spt_entry, elem);
 	return spte_a->vaddr < spte_b->vaddr;
 }
 
-static void spt_destroy_func(struct hash_elem *e, void *aux)
+static void spt_destroy_func(struct hash_elem *e, void *aux UNUSED)
 {
 	struct spt_entry *spte=hash_entry(e, struct spt_entry, elem);
 	free_page(pagedir_get_page (thread_current ()->pagedir, spte->vaddr));

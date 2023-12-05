@@ -7,13 +7,12 @@
 #include "threads/vaddr.h"
 #include "userprog/syscall.h"
 #include "threads/palloc.h"
-#include "vm/swap.h"
+#include "devices/swap.h"
 #include "vm/page.h"
 #include "vm/frame.h"
 #include "process.h"
 
-
-/* Nusber of page faults processed. */
+/* Number of page faults processed. */
 static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
@@ -133,8 +132,8 @@ static void
 page_fault (struct intr_frame *f) 
 {
   bool not_present;  /* True: not-present page, false: writing r/o page. */
-  bool write;        /* True: access was write, false: access was read. */
-  bool user;         /* True: access by user, false: access by kernel. */
+//   bool write;        /* True: access was write, false: access was read. */
+//   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
 
   /* Obtain faulting address, the virtual address that was
@@ -155,8 +154,14 @@ page_fault (struct intr_frame *f)
 
   /* Determine cause. */
   not_present = (f->error_code & PF_P) == 0;
-  write = (f->error_code & PF_W) != 0;
-  user = (f->error_code & PF_U) != 0;
+//   write = (f->error_code & PF_W) != 0;
+//   user = (f->error_code & PF_U) != 0;
+
+   /* Causes of page_fault not_present
+      1. Accessing invalid page           -> exit(-1)
+      2. Stack expansion is happening     -> give a new page for the stack
+      3. Page is in the supplemental page table and 
+         has not been put into the actual page table -> Refer spte for a new page */
 
    
    if (not_present)
@@ -164,13 +169,14 @@ page_fault (struct intr_frame *f)
       struct spt_entry *spte = find_spte(fault_addr);
       if (spte == NULL)
       {
+         /* If not in the supplemental page table, check if it is a stack */
          if (!check_stack_esp(fault_addr, f->esp))
-         {
             exit(EXIT_ERROR);
-         }
-         expand_stack(fault_addr);
+         else 
+            expand_stack(fault_addr);
          return;
       }
+
       if (!page_fault_helper(spte))
       {
          exit(EXIT_ERROR);
