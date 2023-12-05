@@ -631,7 +631,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   
       struct spt_entry *spte;
 
-      /* Create spt_entry spte suing malloc. */
+      /* Create spt_entry spte using malloc. */
       if (!find_spte(upage))
       {
         spte = malloc(sizeof(struct spt_entry));

@@ -1,6 +1,7 @@
 #include "vm/page.h"
 #include "vm/frame.h"
 
+/* lock? */
 
 /* Using the vaddr of spt_entry as an argument, 
    return the hash value by using the hash_int() function. */
