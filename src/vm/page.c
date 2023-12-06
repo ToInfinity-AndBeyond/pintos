@@ -21,14 +21,6 @@ static bool spt_less_func(const struct hash_elem *a, const struct hash_elem *b, 
 	return spte_a->vaddr < spte_b->vaddr;
 }
 
-/* A helper function to be used in spt_destory() function. */
-static void spt_destroy_helper(struct hash_elem *elem, void *aux UNUSED)
-{
-	struct spt_entry *spte = hash_entry(elem, struct spt_entry, elem);
-	free_page(pagedir_get_page (thread_current ()->pagedir, spte->vaddr));
-	free(spte);
-}
-
 /* Initialize Hash Table using hash_init. */
 void spt_init(struct hash *spt)
 {
@@ -63,18 +55,27 @@ bool delete_spte(struct hash *spt, struct spt_entry *spte)
 struct spt_entry *find_spte(void *vaddr)
 {
 	struct thread *cur = thread_current();
-	struct spt_entry search_entry;
+	struct spt_entry spte;
 
 	/* Get vaddr's page number using pg_round_down() function. */
-	search_entry.vaddr = pg_round_down(vaddr);
+	spte.vaddr = pg_round_down(vaddr);
 
-	struct hash_elem* elem= hash_find(&(cur->spt), &(search_entry.elem));
+	struct hash_elem* elem= hash_find(&(cur->spt), &(spte.elem));
 
 	if(elem != NULL)
 		return hash_entry(elem, struct spt_entry, elem);
 	else
 		return NULL;
 }
+
+/* A helper function to be used in spt_destory() function. */
+static void spt_destroy_helper(struct hash_elem *elem, void *aux UNUSED)
+{
+	struct spt_entry *spte = hash_entry(elem, struct spt_entry, elem);
+	free_page(pagedir_get_page (thread_current ()->pagedir, spte->vaddr));
+	free(spte);
+}
+
 /* Remove spt_entries from the hash table using the hash_destroy() function. */
 void spt_destroy(struct hash *spt)
 {

@@ -18,8 +18,7 @@ struct spt_entry{
   void *vaddr;  
   bool writable;
   bool pinned;
-    
-
+  
   bool is_loaded;  
   struct file* file; 
 
