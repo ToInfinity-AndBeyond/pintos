@@ -257,27 +257,29 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  /* Release all spt_entry within mmap_list that correspond to a specific mapid */
+  /* When process exits, remove all mmap_entry within mmap_list 
+     and spt_entry within spte_list. */
 	for (struct list_elem *elem = list_begin(&cur->mmap_list); elem != list_end(&cur->mmap_list);) {
 		struct list_elem *next_elem = list_next(elem);
 
 		struct mmap_entry *m_entry = list_entry(elem, struct mmap_entry, elem);
     
     /* Remove all spt_entry linked to mmap_file's spte_list*/
-    for(struct list_elem * elem2=list_begin(&m_entry->spte_list);elem2!=list_end(&m_entry->spte_list); )
+    for(struct list_elem * elem2 = list_begin(&m_entry->spte_list);elem2 != list_end(&m_entry->spte_list);)
     {
 
-      struct list_elem *next_elem2=list_next(elem2);
+      struct list_elem *next_elem2 = list_next(elem2);
 
-      struct spt_entry *spte=list_entry(elem2, struct spt_entry, mmap_elem);
+      struct spt_entry *spte = list_entry(elem2, struct spt_entry, mmap_elem);
       if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
         file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
       }
       spte->is_loaded = false;
       list_remove(elem2);
 
+      /* Delete spte from hash table. */
       delete_spte(&thread_current()->spt, spte);
-      elem2=next_elem2;
+      elem2 = next_elem2;
     }
 
     list_remove(&m_entry->elem);
