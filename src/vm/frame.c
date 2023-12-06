@@ -4,6 +4,7 @@
 #include "filesys/file.h"
 #include "lib/kernel/bitmap.h"
 
+
 static struct list_elem* find_next_clock(void)
 {
     if(list_empty(&clock_list))
@@ -88,7 +89,6 @@ void evict_pages(void)
     }
     
     page_to_be_evicted->spte->is_loaded=false;
-
     free_page_helper (page_to_be_evicted);
 }
 
