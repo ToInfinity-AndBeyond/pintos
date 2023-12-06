@@ -637,17 +637,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       } else {
         spte = find_spte(upage);
       }
-      
-      /* Set spt_entry's members. */
-      spte -> type = ZERO;
-      spte -> vaddr = upage;
-      spte -> writable = writable;
-      spte -> is_loaded = false;
-      spte -> file = reopen_file;
-      spte -> offset = ofs;
-      spte -> read_bytes = page_read_bytes;
-      spte -> zero_bytes = page_zero_bytes;
 
+      /* Initialize spt_entry's members. */
+      spte_initialize(spte, ZERO, upage, reopen_file, writable, false, ofs, page_read_bytes, page_zero_bytes);
       /* Add spt_entry spte to the hash table using insert_spte() function. */
       insert_spte(&thread_current() -> spt, spte);
 

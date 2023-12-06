@@ -26,6 +26,20 @@ void spt_init(struct hash *spt)
 {
 	hash_init(spt, spt_hash_func, spt_less_func, NULL);
 }
+
+void spte_initialize(struct spt_entry *spte, enum spt_page_type type, void *addr, 
+					 struct file* file, bool writable, bool is_loaded, off_t offset, 
+					 size_t page_read_bytes, size_t page_zero_bytes) {
+    spte->type = type;
+    spte->vaddr = addr;
+    spte->writable = writable;
+    spte->is_loaded = is_loaded;
+    spte->file = file;
+    spte->offset = offset;
+    spte->read_bytes = page_read_bytes;
+    spte->zero_bytes = page_zero_bytes;
+}
+
 /* Insert spt_entry using hash_insert() function. */
 bool insert_spte(struct hash *spt, struct spt_entry *spte)
 {
