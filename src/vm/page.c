@@ -21,6 +21,7 @@ static bool spt_less_func(const struct hash_elem *a, const struct hash_elem *b, 
 	return spte_a->vaddr < spte_b->vaddr;
 }
 
+/* A helper function to be used in spt_destory() function. */
 static void spt_destroy_helper(struct hash_elem *elem, void *aux UNUSED)
 {
 	struct spt_entry *spte = hash_entry(elem, struct spt_entry, elem);
@@ -83,9 +84,11 @@ void spt_destroy(struct hash *spt)
 /* Loads pages existing on the disk into physical memory. */
 bool load_file(void* paddr, struct spt_entry *spte)
 {
-
-    file_seek(spte->file, spte->offset);
-    if(file_read (spte->file, paddr, spte->read_bytes) != (int)(spte->read_bytes))
+	ASSERT(paddr != NULL);
+	ASSERT(spte != NULL);
+	ASSERT(spte->type == ZERO || spte->type == FILE);
+	int a = file_read_at(spte->file, paddr, spte->read_bytes, spte->offset);
+	if (a != (int) spte->read_bytes)
 	{
 		return false;
 	}
