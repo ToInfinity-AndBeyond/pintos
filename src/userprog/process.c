@@ -2,7 +2,6 @@
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "threads/synch.h"
@@ -658,7 +657,6 @@ static bool
 setup_stack (void **esp) 
 {
   struct page *kpage;
-  void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
 
   struct spt_entry *spte = malloc(sizeof(struct spt_entry));
   if (spte == NULL)
@@ -666,12 +664,13 @@ setup_stack (void **esp)
     return false;
   }
 
+  /* Initialize spt entry, and insert it to the hash table. */
   kpage = allocate_page (PAL_USER | PAL_ZERO);
-  if (install_page(upage, kpage->paddr, true))
+  if (install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage->paddr, true))
   {
     *esp = PHYS_BASE;
     spte->type = SWAP;
-		spte->vaddr = upage;
+		spte->vaddr = ((uint8_t *) PHYS_BASE) - PGSIZE;
 		spte->writable = true;
 		spte->is_loaded = true;
 
@@ -706,6 +705,7 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
+/* Checks if it is possible to expand stack. */
 bool
 check_stack_esp(void *addr, void *esp)
 {
@@ -748,26 +748,19 @@ bool page_fault_helper(struct spt_entry *spte)
 
   struct page *kpage = allocate_page(PAL_USER);
   kpage->spte=spte;
-  switch(spte->type)
+
+  if (spte->type == ZERO || spte->type == FILE)
   {
-      /* Invoking load_file() loads a file from the disk into physical pages. */
-    case ZERO:
-      if(!load_file(kpage->paddr, spte))
-      {
-        free_page(kpage->paddr);
-        return false;
-      }
-      break;
-    case FILE:
-      if(!load_file(kpage->paddr, spte))
-      {
-        free_page(kpage->paddr);
-        return false;
-      }
-      break;
-    case SWAP:
-      swap_in(kpage->paddr, spte->swap_slot);
-      break;
+    /* Invoking load_file() loads a file from the disk into physical pages. */
+    if (!load_file(kpage->paddr, spte))
+    {
+      free_page(kpage->paddr);
+      return false;
+    }
+  } 
+  else 
+  {
+    swap_in(kpage->paddr, spte->swap_slot);
   }
 
    /* Maps the virtual address to the physical address in the page table. */
