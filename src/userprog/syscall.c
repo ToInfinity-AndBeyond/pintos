@@ -381,6 +381,26 @@ uint32_t sys_mmap(uint32_t *esp)
 
   /* spt_entry Initialization. */
   int read_bytes_size = file_length(mmape -> file);
+
+  int check_bytes_size = read_bytes_size;
+  int *check_addr = addr;
+  int check_offset = offset;
+  
+  /* Check if range of to-be-mapped pages would overlap with any existing mapped pages */
+  while(check_bytes_size > 0) 
+  {
+    size_t page_read_bytes = check_bytes_size < PGSIZE ? check_bytes_size : PGSIZE;
+
+    if (find_spte(check_addr)) {
+      free(mmape);
+      return EXIT_ERROR;
+    } 
+
+    check_addr += PGSIZE;
+    check_offset += page_read_bytes;
+    check_bytes_size -= page_read_bytes;
+  } 
+
   while(read_bytes_size > 0)
   {
     size_t page_read_bytes = read_bytes_size < PGSIZE ? read_bytes_size : PGSIZE;
