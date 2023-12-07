@@ -23,7 +23,8 @@
 #include "devices/swap.h"
 
 #define LIMIT_STACK_SIZE 8*1024*1024
-#define ADDRESS_SIZE 32
+#define PUSH_SIZE 4
+#define PUSHA_SIZE 32
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -711,8 +712,9 @@ install_page (void *upage, void *kpage, bool writable)
 bool
 check_stack_esp(void *addr, void *esp)
 {
-  return is_user_vaddr(pg_round_down(addr)) && addr >= esp - ADDRESS_SIZE 
-         && addr >= (PHYS_BASE - LIMIT_STACK_SIZE);
+  return is_user_vaddr(pg_round_down(addr)) && 
+         (addr >= esp || addr == esp  - PUSH_SIZE || addr == esp - PUSHA_SIZE) &&
+         addr >= (PHYS_BASE - LIMIT_STACK_SIZE);
 }
 
 /* Expand stack to include addr. */
