@@ -2,7 +2,6 @@
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "threads/synch.h"
@@ -20,7 +19,11 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "userprog/syscall.h"
+#include "vm/frame.h"
+#include "devices/swap.h"
 
+#define LIMIT_STACK_SIZE 8*1024*1024
+#define ADDRESS_SIZE 32
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -67,7 +70,9 @@ process_execute (const char *file_name)
   strlcpy(thread_name, file_name, i + 1);
 
   /* Checks if file that is opened using thread_name is NULL*/
+  lock_acquire(&filesys_lock);
   struct file *file = filesys_open(thread_name);
+  lock_release(&filesys_lock);
   if (file == NULL)
   {
     return -1;
@@ -171,6 +176,7 @@ start_process (void *file_name_)
     }
   }
   strlcpy(thread_name, file_name, i + 1);
+  spt_init(&(thread_current() -> spt));
   
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -235,6 +241,7 @@ process_wait (tid_t child_tid UNUSED)
          This prevents the parent from waiting multiple times on the same child */
       exit_status = r->exit_status;
       list_remove(&r->elem);
+      free(r);
       return exit_status;
     }
   }
@@ -249,6 +256,39 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  /* When process exits, remove all mmap_entry within mmap_list 
+     and spt_entry within spte_list. */
+	for (struct list_elem *elem = list_begin(&cur->mmap_list); elem != list_end(&cur->mmap_list);) {
+		struct list_elem *next_elem = list_next(elem);
+
+		struct mmap_entry *m_entry = list_entry(elem, struct mmap_entry, elem);
+    
+    /* Remove all spt_entry linked to mmap_file's spte_list*/
+    for(struct list_elem * elem2 = list_begin(&m_entry->spte_list);elem2 != list_end(&m_entry->spte_list);)
+    {
+
+      struct list_elem *next_elem2 = list_next(elem2);
+
+      struct spt_entry *spte = list_entry(elem2, struct spt_entry, mmap_elem);
+      if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
+        file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
+      }
+      spte->is_loaded = false;
+      list_remove(elem2);
+
+      /* Delete spte from hash table. */
+      delete_spte(&thread_current()->spt, spte);
+      elem2 = next_elem2;
+    }
+
+    list_remove(&m_entry->elem);
+    free(m_entry);
+
+		elem = next_elem;
+	}
+
+  spt_destroy(&cur->spt);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -411,13 +451,16 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+  lock_acquire(&filesys_lock);
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
     {
+      lock_release(&filesys_lock);
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
+    lock_release(&filesys_lock);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -572,6 +615,7 @@ static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
+  struct file* reopen_file = file_reopen(file);
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
@@ -584,44 +628,26 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
          and zero the final PAGE_ZERO_BYTES bytes. */
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
-      
-      /* Check if virtual page already allocated */
-      struct thread *t = thread_current ();
-      uint8_t *kpage = pagedir_get_page (t->pagedir, upage);
-      
-      if (kpage == NULL){
-        
-        /* Get a new page of memory. */
-        kpage = palloc_get_page (PAL_USER);
-        if (kpage == NULL){
-          return false;
-        }
-        
-        /* Add the page to the process's address space. */
-        if (!install_page (upage, kpage, writable)) 
-        {
-          palloc_free_page (kpage);
-          return false; 
-        }     
-        
+  
+      struct spt_entry *spte;
+
+      /* Create spt_entry spte using malloc. */
+      if (!find_spte(upage))
+      {
+        spte = malloc(sizeof(struct spt_entry));
       } else {
-        
-        /* Check if writable flag for the page should be updated */
-        if(writable && !pagedir_is_writable(t->pagedir, upage)){
-          pagedir_set_writable(t->pagedir, upage, writable); 
-        }
-        
+        spte = find_spte(upage);
       }
 
-      /* Load data into the page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes){
-        return false; 
-      }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
+      /* Initialize spt_entry's members. */
+      spte_initialize(spte, ZERO, upage, reopen_file, writable, false, ofs, page_read_bytes, page_zero_bytes);
+      /* Add spt_entry spte to the hash table using insert_spte() function. */
+      insert_spte(&thread_current() -> spt, spte);
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
+      ofs += page_read_bytes;
       upage += PGSIZE;
     }
   return true;
@@ -632,19 +658,33 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp) 
 {
-  uint8_t *kpage;
-  bool success = false;
+  struct page *kpage;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
-    {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE - 12;
-      else
-        palloc_free_page (kpage);
-    }
-  return success;
+  struct spt_entry *spte = malloc(sizeof(struct spt_entry));
+  if (spte == NULL)
+  {
+    return false;
+  }
+
+  /* Initialize spt entry, and insert it to the hash table. */
+  kpage = allocate_page (PAL_USER | PAL_ZERO);
+  if (install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage->paddr, true))
+  {
+    *esp = PHYS_BASE;
+    spte->type = SWAP;
+		spte->vaddr = ((uint8_t *) PHYS_BASE) - PGSIZE;
+		spte->writable = true;
+		spte->is_loaded = true;
+
+    kpage->spte = spte;
+    insert_spte(&(thread_current() -> spt), spte);
+  }
+  else
+  {
+    free_page(kpage->paddr);
+    return false;
+  }
+  return true;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
@@ -665,4 +705,73 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+/* Checks if it is possible to expand stack. */
+bool
+check_stack_esp(void *addr, void *esp)
+{
+  return is_user_vaddr(pg_round_down(addr)) && addr >= esp - ADDRESS_SIZE 
+         && addr >= (PHYS_BASE - LIMIT_STACK_SIZE);
+}
+
+/* Expand stack to include addr. */
+bool expand_stack(void *addr)
+{
+	struct spt_entry *spte = malloc(sizeof(struct spt_entry));
+	if(spte==NULL)
+  {
+    return false;
+  }
+
+  struct page *kpage = allocate_page(PAL_USER | PAL_ZERO);
+
+	spte->type=SWAP;
+	spte->vaddr=pg_round_down(addr);
+	spte->writable=true;
+	spte->is_loaded=true;
+	insert_spte(&thread_current()->spt, spte);
+	kpage->spte=spte;
+  
+
+	if(!install_page(spte->vaddr, kpage->paddr, spte->writable))
+	{
+		free_page(kpage->paddr);
+		free(spte);
+		return false;
+	}
+
+	return true;
+}
+
+/* When page fault occurs, allocate physical page. */
+bool page_fault_helper(struct spt_entry *spte)
+{
+
+  struct page *kpage = allocate_page(PAL_USER);
+  kpage->spte=spte;
+
+  if (spte->type == ZERO || spte->type == FILE)
+  {
+    /* Invoking load_file() loads a file from the disk into physical pages. */
+    if (!load_file(kpage->paddr, spte))
+    {
+      free_page(kpage->paddr);
+      return false;
+    }
+  } 
+  else 
+  {
+    swap_in(kpage->paddr, spte->swap_slot);
+  }
+
+   /* Maps the virtual address to the physical address in the page table. */
+  if (!install_page (spte->vaddr, kpage->paddr, spte->writable))
+  {
+    free_page (kpage->paddr);
+    return false;
+  }
+  spte->is_loaded=true;
+
+  return true;
 }

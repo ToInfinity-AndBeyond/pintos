@@ -1,6 +1,5 @@
 #include "userprog/syscall.h"
 #include "lib/user/syscall.h"
-#include <stdio.h>
 #include <string.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -11,6 +10,9 @@
 #include "threads/malloc.h"
 #include "threads/vaddr.h"
 #include "devices/input.h"
+#include "vm/frame.h"
+#include "vm/page.h"
+#include "devices/swap.h"
 
 #define STDIN 0
 #define STDOUT 1
@@ -33,11 +35,13 @@ uint32_t sys_write (uint32_t *esp);
 uint32_t sys_seek (uint32_t *esp);
 uint32_t sys_tell (uint32_t *esp);
 uint32_t sys_close (uint32_t *esp);
+uint32_t sys_mmap (uint32_t *esp);
+uint32_t sys_munmap (uint32_t *esp);
+
 
 void exit (int status);
 
-static struct lock filesys_lock;
-static const int syscall_args[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1};
+static const int syscall_args[] = {0, 1, 1, 1, 2, 1, 1, 1, 3, 3, 2, 1, 1, 2, 1};
 static uint32_t (*syscall_func[]) (uint32_t *esp) = 
 {
   sys_halt,
@@ -52,10 +56,36 @@ static uint32_t (*syscall_func[]) (uint32_t *esp) =
   sys_write,
   sys_seek,
   sys_tell,
-  sys_close
+  sys_close,
+  sys_mmap,
+  sys_munmap
 };
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
+
+static void
+check_spte_address(void *str, unsigned size, void *esp)
+{
+    for (uint32_t i = 0; i < size; i++)
+    {
+        if (!is_user_vaddr(str + i))
+        {
+            exit(EXIT_ERROR);
+        }
+
+        struct spt_entry *spte = find_spte(str + i);
+        if (spte == NULL)
+        {
+            if (!check_stack_esp(str + i, esp))
+                exit(EXIT_ERROR);
+            expand_stack(str + i);
+            spte = find_spte(str + i);
+        }
+
+        if (spte == NULL)
+            exit(EXIT_ERROR);
+    }
+}
 
 void
 syscall_init (void) 
@@ -133,6 +163,7 @@ uint32_t sys_exec (uint32_t *esp)
 {
   const char *cmd_line = (const char *) esp[1];
 
+
   return process_execute(cmd_line);
 }
 
@@ -156,6 +187,7 @@ uint32_t sys_create (uint32_t *esp)
 uint32_t sys_remove (uint32_t *esp)
 {
   const char *file = (const char *) esp[1];
+  
 
   /* If file name is null, terminate. */
   if (file == NULL) 
@@ -172,6 +204,7 @@ uint32_t sys_remove (uint32_t *esp)
 uint32_t sys_open (uint32_t *esp)
 {
   const char *file = (const char *) esp[1];
+
 
   /* If file name is null, terminate. */
   if (file == NULL)
@@ -219,6 +252,7 @@ uint32_t sys_read (uint32_t *esp)
   int fd = (int) esp[1];
   void *buffer = (void *) esp[2];
   unsigned size = (unsigned) esp[3];
+  check_spte_address(buffer, size, esp);
 
   /* If fd == STDIN, reads from the keyboard using input_getc() */
   if (fd == STDIN) {
@@ -246,6 +280,7 @@ uint32_t sys_write (uint32_t *esp)
   int fd = (int) esp[1];
   const void *buffer = (const void *) esp[2];
   unsigned size = (unsigned) esp[3];
+  check_spte_address((void *) buffer, size, esp);
 
   /* If fd == STDOUT, writes to the console using putbuf(). */
   if (fd == STDOUT) 
@@ -306,5 +341,127 @@ uint32_t sys_close (uint32_t *esp)
   lock_acquire(&filesys_lock);
   file_close(fp);
   lock_release(&filesys_lock);
+  return VOID_RET;
+}
+
+/* Load file data into memory by demand paging, 
+   return the mapid upon success, return -1 upon failure. */
+uint32_t sys_mmap(uint32_t *esp)
+{
+  int fd = (int) esp[1];
+  void *addr = (void*) esp[2];
+  int mapid;
+  struct file *fp = thread_current() -> fd[fd];
+  size_t offset = 0;
+
+  /* Invalid cases. */
+  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr(addr) || find_spte(addr)
+      || fd == 0 || fd == 1)
+  {
+    return -1;
+  }
+
+  /* Initialize mmap_entry, and if failed, return -1
+     This is done separately from the invalid cases, as mmape must be freed */
+  struct mmap_entry *mmape = malloc(sizeof(struct mmap_entry));
+  if (mmape == NULL) 
+  {
+    return -1;
+  }
+
+  mapid = thread_current() -> next_mapid++;
+  mmape->mapid = mapid;
+
+  lock_acquire(&filesys_lock);
+  mmape->file = file_reopen(fp);
+  lock_release(&filesys_lock);
+
+  list_init (&mmape->spte_list);
+  list_push_back(&thread_current() -> mmap_list, &mmape->elem);
+
+  /* spt_entry Initialization. */
+  int read_bytes_size = file_length(mmape -> file);
+
+  int check_bytes_size = read_bytes_size;
+  int *check_addr = addr;
+  int check_offset = offset;
+  
+  /* Check if range of to-be-mapped pages would overlap with any existing mapped pages */
+  while(check_bytes_size > 0) 
+  {
+    size_t page_read_bytes = check_bytes_size < PGSIZE ? check_bytes_size : PGSIZE;
+
+    if (find_spte(check_addr)) {
+      free(mmape);
+      return EXIT_ERROR;
+    } 
+
+    check_addr += PGSIZE;
+    check_offset += page_read_bytes;
+    check_bytes_size -= page_read_bytes;
+  } 
+
+  while(read_bytes_size > 0)
+  {
+    size_t page_read_bytes = read_bytes_size < PGSIZE ? read_bytes_size : PGSIZE;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
+    
+    struct spt_entry *spte = malloc(sizeof(struct spt_entry));
+    spte_initialize(spte, FILE, addr, mmape->file, true, false, offset, page_read_bytes, page_zero_bytes);
+    list_push_back(&(mmape->spte_list), &(spte->mmap_elem));
+    insert_spte(&thread_current() -> spt, spte);
+
+    addr += PGSIZE;
+    offset += page_read_bytes;
+    read_bytes_size -= page_read_bytes;
+  }
+  return mapid;
+}
+
+/* Unmaps the mapping designated by mapid. */
+uint32_t sys_munmap(uint32_t *esp)
+{
+  int mapid = (int)esp[1];
+
+  struct thread *cur= thread_current();
+
+  /* Find mmape that has the corresponding mapid. */
+  struct mmap_entry *mmape = NULL;
+  struct list_elem *e1 = list_begin(&cur->mmap_list);
+  while (e1 != list_end(&cur->mmap_list)) {
+  struct mmap_entry *mmap_entry = list_entry(e1, struct mmap_entry, elem);
+  
+  if (mmap_entry->mapid == mapid) {
+    mmape = mmap_entry;
+    break;
+  }
+  
+  e1 = list_next(e1);
+}
+  if (mmape == NULL)
+    return VOID_RET;
+
+  /* Delte all spt_entry connected to mmap_entry's spte_list. */
+  struct list_elem *e2 = list_begin(&mmape->spte_list);
+
+  while (e2 != list_end(&mmape->spte_list)) 
+  {
+    struct list_elem *next_e2 = list_next(e2);
+    struct spt_entry *spte = list_entry(e2, struct spt_entry, mmap_elem);
+    
+    /* Writes the contents of the memory to the disk if a page exists and is dirty. */
+    if (spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
+      file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
+    }
+    
+    spte->is_loaded = false;
+    list_remove(e2);
+    
+    delete_spte(&thread_current()->spt, spte);
+    e2 = next_e2;
+  }
+
+  list_remove(&mmape->elem);
+  free(mmape);
   return VOID_RET;
 }

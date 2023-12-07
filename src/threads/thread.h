@@ -112,6 +112,12 @@ struct thread
     struct file *fd[128];               /* Array of file descriptors */
 #endif
 
+#ifdef VM
+  struct hash spt;
+  struct list mmap_list; 
+  int next_mapid;
+#endif
+
     /* Owned by thread.c. */
     int nice;                           /* Higher values -> gives up more CPU time */
     real recent_cpu;                    /* How much CPU time the thread has recently taken */

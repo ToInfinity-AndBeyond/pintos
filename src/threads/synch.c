@@ -199,32 +199,12 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
-  enum intr_level old_level;
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  struct thread *cur = thread_current();
-  struct thread *lock_holder_thread = lock -> holder;
-
-  /* If there is a thread that holds lock, donate priority to the thread
-    and insert the current thread to donation_list of the lock_holder_thread. */
-  old_level = intr_disable ();
-
-  if (lock_holder_thread) {
-    cur -> waiting_lock = lock;
-    list_insert_ordered(&lock_holder_thread->donation_list, &cur->donation_elem,
-                        thread_cmp_donate_priority, 0);
-    thread_donate_priority();
-  }
-
   sema_down (&lock->semaphore);
-  lock->holder = cur;
-  
-  thread_receive_donation_from(lock);
-  cur->waiting_lock = NULL; 
-
-  intr_set_level(old_level);
+  lock->holder = thread_current();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
