@@ -166,6 +166,7 @@ page_fault (struct intr_frame *f)
    
    if (not_present)
    {
+      /* Check the current thread's spt for the faulting address */
       struct spt_entry *spte = find_spte(fault_addr);
       if (spte == NULL)
       {
@@ -177,6 +178,7 @@ page_fault (struct intr_frame *f)
          return;
       }
 
+      /* If in the supplemental page table, try to load it or share from existing page */
       if (!page_fault_helper(spte))
       {
          exit(EXIT_ERROR);

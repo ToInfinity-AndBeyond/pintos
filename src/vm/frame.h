@@ -19,6 +19,7 @@ void add_page(struct page* page);
 void delete_page(struct page *page);
 
 void evict_pages(void);
+struct page *share_existing_page(struct spt_entry *spte);
 struct page *allocate_page(enum palloc_flags alloc_flag);
 void free_page(void *paddr);
 void free_page_helper(struct page *page);

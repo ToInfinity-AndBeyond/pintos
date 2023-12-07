@@ -747,6 +747,21 @@ bool expand_stack(void *addr)
 /* When page fault occurs, allocate physical page. */
 bool page_fault_helper(struct spt_entry *spte)
 {
+  /* Check if the file can be shared */
+  struct page* share_page = share_existing_page(spte);
+  if (share_page) {
+    /* If the file can be shared, install the page*/
+    if(!install_page(share_page->spte->vaddr, share_page->paddr, share_page->spte->writable)) {
+      /* Remove the share_page if install_page failed. 
+         We shouldn't call free_page because the original shared page shouldn't be removed */
+      delete_page(share_page);
+      free(share_page);
+      return false;
+    }
+
+    share_page->spte->is_loaded = true;
+    return true;
+  }
 
   struct page *kpage = allocate_page(PAL_USER);
   kpage->spte=spte;

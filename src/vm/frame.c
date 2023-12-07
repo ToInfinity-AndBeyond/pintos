@@ -3,6 +3,7 @@
 #include "userprog/pagedir.h"
 #include "filesys/file.h"
 #include "lib/kernel/bitmap.h"
+#include "userprog/process.h"
 
 
 static struct list_elem* find_next_clock(void)
@@ -91,8 +92,49 @@ void evict_pages(void)
             break;
     }
     
-    page_to_be_evicted->spte->is_loaded=false;
+    page_to_be_evicted->spte->is_loaded = false;
     free_page_helper (page_to_be_evicted);
+}
+
+
+/* Creates a page with the given spte with the physical address of 
+   a page that loaded the same file. This spte doesn't have to be loaded, but has to be installed*/
+struct page *share_existing_page(struct spt_entry *spte) 
+{
+    if(spte->writable || spte->type != FILE){
+        return NULL;
+    }
+
+    lock_acquire(&clock_list_lock);
+
+    /* Iterate through the clock_list to find a page loaded with the same file */
+    struct list_elem *elem = list_begin(&clock_list);
+    while (elem != list_end(&clock_list)) {
+        struct page* pg = list_entry(elem, struct page, clock_elem);
+        if (pg->spte->is_loaded && file_compare(pg->spte->file, spte->file)) {
+            /* This page loaded the same file, so it can be shared. 
+               Setup the share_page, which has the paddr of the loaded page
+               and spte of the argument */
+            struct page *share_page = malloc(sizeof(struct page));
+            if(share_page == NULL) // Failed malloc
+                return NULL;
+            share_page->paddr = pg->paddr;
+            share_page->spte = spte;
+            share_page->thread = thread_current();
+            /* Add this shared page into the clock_list */
+            add_page(share_page);
+
+            lock_release(&clock_list_lock);
+            // printf("Shared page!!!\n");
+            return share_page;
+        }
+
+        elem = list_next(elem);
+    }
+
+    lock_release(&clock_list_lock);
+    /* Return false if not found */
+    return NULL;
 }
 
 /* Allocate page. */
