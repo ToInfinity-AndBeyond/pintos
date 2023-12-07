@@ -671,18 +671,6 @@ is_thread(struct thread *t)
   return t != NULL && t->magic == THREAD_MAGIC;
 }
 
-// unsigned relation_hash_hash_func(struct hash_elem *e, void *aux) {
-//   struct relation *r = hash_entry(e, struct relation, helem);
-//   // The hash table only contains children, so no need to consider the parent
-//   return r->child_tid; 
-// }
-
-// bool relation_hash_less_func(struct hash_elem *a, struct hash_elem *b, void *aux) {
-//   struct relation *ra = hash_entry(a, struct relation, helem);
-//   struct relation *rb = hash_entry(b, struct relation, helem);
-//   return ra->child_tid < rb->child_tid;
-// }
-
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void

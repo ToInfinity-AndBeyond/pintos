@@ -2,7 +2,6 @@
 #include <debug.h>
 #include <inttypes.h>
 #include <round.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "threads/synch.h"
@@ -258,27 +257,29 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  /* Release all spt_entry within mmap_list that correspond to a specific mapid */
+  /* When process exits, remove all mmap_entry within mmap_list 
+     and spt_entry within spte_list. */
 	for (struct list_elem *elem = list_begin(&cur->mmap_list); elem != list_end(&cur->mmap_list);) {
 		struct list_elem *next_elem = list_next(elem);
 
 		struct mmap_entry *m_entry = list_entry(elem, struct mmap_entry, elem);
     
     /* Remove all spt_entry linked to mmap_file's spte_list*/
-    for(struct list_elem * elem2=list_begin(&m_entry->spte_list);elem2!=list_end(&m_entry->spte_list); )
+    for(struct list_elem * elem2 = list_begin(&m_entry->spte_list);elem2 != list_end(&m_entry->spte_list);)
     {
 
-      struct list_elem *next_elem2=list_next(elem2);
+      struct list_elem *next_elem2 = list_next(elem2);
 
-      struct spt_entry *spte=list_entry(elem2, struct spt_entry, mmap_elem);
+      struct spt_entry *spte = list_entry(elem2, struct spt_entry, mmap_elem);
       if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
         file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
       }
       spte->is_loaded = false;
       list_remove(elem2);
 
+      /* Delete spte from hash table. */
       delete_spte(&thread_current()->spt, spte);
-      elem2=next_elem2;
+      elem2 = next_elem2;
     }
 
     list_remove(&m_entry->elem);
@@ -637,17 +638,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       } else {
         spte = find_spte(upage);
       }
-      
-      /* Set spt_entry's members. */
-      spte -> type = ZERO;
-      spte -> vaddr = upage;
-      spte -> writable = writable;
-      spte -> is_loaded = false;
-      spte -> file = reopen_file;
-      spte -> offset = ofs;
-      spte -> read_bytes = page_read_bytes;
-      spte -> zero_bytes = page_zero_bytes;
 
+      /* Initialize spt_entry's members. */
+      spte_initialize(spte, ZERO, upage, reopen_file, writable, false, ofs, page_read_bytes, page_zero_bytes);
       /* Add spt_entry spte to the hash table using insert_spte() function. */
       insert_spte(&thread_current() -> spt, spte);
 
@@ -666,7 +659,6 @@ static bool
 setup_stack (void **esp) 
 {
   struct page *kpage;
-  void *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
 
   struct spt_entry *spte = malloc(sizeof(struct spt_entry));
   if (spte == NULL)
@@ -674,12 +666,13 @@ setup_stack (void **esp)
     return false;
   }
 
+  /* Initialize spt entry, and insert it to the hash table. */
   kpage = allocate_page (PAL_USER | PAL_ZERO);
-  if (install_page(upage, kpage->paddr, true))
+  if (install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage->paddr, true))
   {
     *esp = PHYS_BASE;
     spte->type = SWAP;
-		spte->vaddr = upage;
+		spte->vaddr = ((uint8_t *) PHYS_BASE) - PGSIZE;
 		spte->writable = true;
 		spte->is_loaded = true;
 
@@ -714,6 +707,7 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
+/* Checks if it is possible to expand stack. */
 bool
 check_stack_esp(void *addr, void *esp)
 {
@@ -756,26 +750,19 @@ bool page_fault_helper(struct spt_entry *spte)
 
   struct page *kpage = allocate_page(PAL_USER);
   kpage->spte=spte;
-  switch(spte->type)
+
+  if (spte->type == ZERO || spte->type == FILE)
   {
-      /* Invoking load_file() loads a file from the disk into physical pages. */
-    case ZERO:
-      if(!load_file(kpage->paddr, spte))
-      {
-        free_page(kpage->paddr);
-        return false;
-      }
-      break;
-    case FILE:
-      if(!load_file(kpage->paddr, spte))
-      {
-        free_page(kpage->paddr);
-        return false;
-      }
-      break;
-    case SWAP:
-      swap_in(kpage->paddr, spte->swap_slot);
-      break;
+    /* Invoking load_file() loads a file from the disk into physical pages. */
+    if (!load_file(kpage->paddr, spte))
+    {
+      free_page(kpage->paddr);
+      return false;
+    }
+  } 
+  else 
+  {
+    swap_in(kpage->paddr, spte->swap_slot);
   }
 
    /* Maps the virtual address to the physical address in the page table. */

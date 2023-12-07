@@ -4,6 +4,7 @@
 #include "filesys/file.h"
 #include "lib/kernel/bitmap.h"
 
+
 static struct list_elem* find_next_clock(void)
 {
     if(list_empty(&clock_list))
@@ -32,11 +33,13 @@ void clock_list_init(void)
     clock_elem=NULL;
 }
 
+/* Add page to the clock_list. */
 void add_page(struct page* page)
 {
     list_push_back(&clock_list, &(page->clock_elem));
 }
 
+/* Delete page from the clock_list. */
 void delete_page(struct page *page)
 {
     if(&page->clock_elem==clock_elem) {
@@ -64,6 +67,7 @@ void evict_pages(void)
     }
     page_to_be_evicted = page;
 
+    /* Perform operations based on the type of spte. */
     switch(page_to_be_evicted->spte->type)
     {
         case ZERO:
@@ -88,10 +92,10 @@ void evict_pages(void)
     }
     
     page_to_be_evicted->spte->is_loaded=false;
-
     free_page_helper (page_to_be_evicted);
 }
 
+/* Allocate page. */
 struct page *allocate_page(enum palloc_flags alloc_flag)
 {
     lock_acquire(&clock_list_lock);
@@ -104,9 +108,9 @@ struct page *allocate_page(enum palloc_flags alloc_flag)
     }
 
     /* Initialize the struct page. */
-    struct page *page=malloc(sizeof(struct page));
-    page->paddr=kpage;
-    page->thread=thread_current();
+    struct page *page = malloc(sizeof(struct page));
+    page->paddr = kpage;
+    page->thread = thread_current();
 
     /* Insert the page to the clock_list using add_page(). */
     add_page(page);
@@ -114,30 +118,29 @@ struct page *allocate_page(enum palloc_flags alloc_flag)
 
     return page;
 }
-//on the page
+/* By traversing the clock_list, free the page with corresponding paddr. */
 void free_page(void *paddr)
 {
     lock_acquire(&clock_list_lock); 
-    struct page *page=NULL;
+    struct page *page = NULL;
 
     /* Search for the struct page corresponding to the physicall address paddr in the clock_list. */
-    struct list_elem *e = list_begin(&clock_list);
-    while (e != list_end(&clock_list)) {
-        struct page* free_page = list_entry(e, struct page, clock_elem);
+    struct list_elem *elem = list_begin(&clock_list);
+    while (elem != list_end(&clock_list)) {
+        struct page* free_page = list_entry(elem, struct page, clock_elem);
         if (free_page->paddr == paddr) {
             page = free_page;
             break;
         }
-        e = list_next(e);
+        elem = list_next(elem);
     }
-    
-
     /* If page is not null, call free_page_helper(). */
-    if(page!=NULL)
+    if(page != NULL)
         free_page_helper (page);
 
     lock_release(&clock_list_lock);
 }
+/* Helper function to be used in freeing pages. */
 void free_page_helper (struct page *page)
 {
     /* Delete from clock_list. */

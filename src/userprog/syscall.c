@@ -1,6 +1,5 @@
 #include "userprog/syscall.h"
 #include "lib/user/syscall.h"
-#include <stdio.h>
 #include <string.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -356,7 +355,8 @@ uint32_t sys_mmap(uint32_t *esp)
   size_t offset = 0;
 
   /* Invalid cases. */
-  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr(addr) || find_spte(addr))
+  if (fp == NULL || pg_ofs(addr) != 0 || !addr || !is_user_vaddr(addr) || find_spte(addr)
+      || fd == 0 || fd == 1)
   {
     return -1;
   }
@@ -371,28 +371,43 @@ uint32_t sys_mmap(uint32_t *esp)
 
   mapid = thread_current() -> next_mapid++;
   mmape->mapid = mapid;
+
   lock_acquire(&filesys_lock);
   mmape->file = file_reopen(fp);
   lock_release(&filesys_lock);
+
   list_init (&mmape->spte_list);
   list_push_back(&thread_current() -> mmap_list, &mmape->elem);
 
   /* spt_entry Initialization. */
   int read_bytes_size = file_length(mmape -> file);
+
+  int check_bytes_size = read_bytes_size;
+  int *check_addr = addr;
+  int check_offset = offset;
+  
+  /* Check if range of to-be-mapped pages would overlap with any existing mapped pages */
+  while(check_bytes_size > 0) 
+  {
+    size_t page_read_bytes = check_bytes_size < PGSIZE ? check_bytes_size : PGSIZE;
+
+    if (find_spte(check_addr)) {
+      free(mmape);
+      return EXIT_ERROR;
+    } 
+
+    check_addr += PGSIZE;
+    check_offset += page_read_bytes;
+    check_bytes_size -= page_read_bytes;
+  } 
+
   while(read_bytes_size > 0)
   {
     size_t page_read_bytes = read_bytes_size < PGSIZE ? read_bytes_size : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
     
     struct spt_entry *spte = malloc(sizeof(struct spt_entry));
-    spte->type = FILE;
-    spte->vaddr = addr;
-    spte->writable = true;
-    spte->is_loaded = false;
-    spte->file = mmape->file;
-    spte->offset = offset;
-    spte->read_bytes = page_read_bytes;
-    spte->zero_bytes = page_zero_bytes;
+    spte_initialize(spte, FILE, addr, mmape->file, true, false, offset, page_read_bytes, page_zero_bytes);
     list_push_back(&(mmape->spte_list), &(spte->mmap_elem));
     insert_spte(&thread_current() -> spt, spte);
 
@@ -403,40 +418,49 @@ uint32_t sys_mmap(uint32_t *esp)
   return mapid;
 }
 
-/* Release all spt entries in mmap_list that have a corresponding mapid */
+/* Unmaps the mapping designated by mapid. */
 uint32_t sys_munmap(uint32_t *esp)
 {
   int mapid = (int)esp[1];
 
   struct thread *cur= thread_current();
 
-  struct mmap_entry *mmape=NULL;
-  for (struct list_elem *e = list_begin(&cur->mmap_list); e != list_end(&cur->mmap_list); e = list_next(e)) {
-    struct mmap_entry *mmap_entry = list_entry(e, struct mmap_entry, elem);
-    if (mmap_entry->mapid == mapid) {
-      mmape = mmap_entry;
-      break;
-    }
+  /* Find mmape that has the corresponding mapid. */
+  struct mmap_entry *mmape = NULL;
+  struct list_elem *e1 = list_begin(&cur->mmap_list);
+  while (e1 != list_end(&cur->mmap_list)) {
+  struct mmap_entry *mmap_entry = list_entry(e1, struct mmap_entry, elem);
+  
+  if (mmap_entry->mapid == mapid) {
+    mmape = mmap_entry;
+    break;
   }
+  
+  e1 = list_next(e1);
+}
   if (mmape == NULL)
     return VOID_RET;
 
-  /* Delete spt_entry, page table entry, mmap_file. */
-  for(struct list_elem *e = list_begin(&mmape->spte_list); e != list_end(&mmape->spte_list);)
-  {
-    struct list_elem *next_e = list_next(e);
+  /* Delte all spt_entry connected to mmap_entry's spte_list. */
+  struct list_elem *e2 = list_begin(&mmape->spte_list);
 
-    struct spt_entry *spte = list_entry(e, struct spt_entry, mmap_elem);
-    if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr))
-    {
+  while (e2 != list_end(&mmape->spte_list)) 
+  {
+    struct list_elem *next_e2 = list_next(e2);
+    struct spt_entry *spte = list_entry(e2, struct spt_entry, mmap_elem);
+    
+    /* Writes the contents of the memory to the disk if a page exists and is dirty. */
+    if (spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
       file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
     }
+    
     spte->is_loaded = false;
-    list_remove(e);
-
+    list_remove(e2);
+    
     delete_spte(&thread_current()->spt, spte);
-    e=next_e;
+    e2 = next_e2;
   }
+
   list_remove(&mmape->elem);
   free(mmape);
   return VOID_RET;

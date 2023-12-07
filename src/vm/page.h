@@ -7,47 +7,45 @@
 #include "threads/vaddr.h"
 
 
-enum spt_page_type
-  {
-    ZERO,
-    FILE,
-    SWAP
-  };
-
-struct spt_entry{
-    enum spt_page_type type; 
-    void *vaddr;  
-    bool writable;
-    bool pinned;
-      
-
-    bool is_loaded;  
-    struct file* file; 
-
-    struct list_elem mmap_elem; 
-
-    size_t offset;  
-    size_t read_bytes;
-    size_t zero_bytes; 
-
-    size_t swap_slot; 
-
-    struct hash_elem elem;
+enum spt_page_type {
+  ZERO,
+  FILE,
+  SWAP
 };
 
-struct mmap_entry{
-    int mapid;  
-    struct file * file; 
-    struct list_elem elem; 
-    struct list spte_list; 
+struct spt_entry{
+  enum spt_page_type type; 
+  void *vaddr;  
+  bool writable;
+  bool pinned;
+  
+  bool is_loaded;  
+  struct file* file; 
+
+  struct list_elem mmap_elem; 
+
+  size_t offset;  
+  size_t read_bytes;
+  size_t zero_bytes; 
+
+  size_t swap_slot; 
+
+  struct hash_elem elem;
+};
+
+struct mmap_entry {
+  int mapid;  
+  struct file * file; 
+  struct list_elem elem; 
+  struct list spte_list; 
 };
 
 // put hash_elem to find the hash interface
-struct page{
-    void *paddr;    
-    struct spt_entry *spte;   
-    struct thread *thread;  
-    struct list_elem clock_elem;  
+struct page {
+  void *paddr;    
+  struct spt_entry *spte;   
+  struct thread *thread;  
+  struct list_elem clock_elem;  
 };
 
 void spt_init(struct hash *spt);
