@@ -409,15 +409,15 @@ uint32_t sys_munmap(uint32_t *esp)
   struct mmap_entry *mmape = NULL;
   struct list_elem *e1 = list_begin(&cur->mmap_list);
   while (e1 != list_end(&cur->mmap_list)) {
-  struct mmap_entry *mmap_entry = list_entry(e1, struct mmap_entry, elem);
-  
-  if (mmap_entry->mapid == mapid) {
-    mmape = mmap_entry;
-    break;
+    struct mmap_entry *mmap_entry = list_entry(e1, struct mmap_entry, elem);
+    
+    if (mmap_entry->mapid == mapid) {
+      mmape = mmap_entry;
+      break;
+    }
+    
+    e1 = list_next(e1);
   }
-  
-  e1 = list_next(e1);
-}
   if (mmape == NULL)
     return VOID_RET;
 
