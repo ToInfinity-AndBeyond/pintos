@@ -385,7 +385,7 @@ uint32_t sys_mmap(uint32_t *esp)
   {
     size_t page_read_bytes = read_bytes_size < PGSIZE ? read_bytes_size : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
-    
+  
     struct spt_entry *spte = malloc(sizeof(struct spt_entry));
     spte_initialize(spte, FILE, addr, mmape->file, true, false, offset, page_read_bytes, page_zero_bytes);
     list_push_back(&(mmape->spte_list), &(spte->mmap_elem));
