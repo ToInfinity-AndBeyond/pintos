@@ -13,6 +13,7 @@
 struct list clock_list;
 struct lock clock_list_lock;
 struct list_elem *clock_elem;
+struct lock eviction_lock;
 
 void clock_list_init(void);
 void add_page(struct page* page);

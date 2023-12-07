@@ -123,9 +123,9 @@ kill (struct intr_frame *f)
 
    At entry, the address that faulted is in CR2 (Control Register
    2) and inforsation about the fault, forsatted as described in
-   the PF_* sacros in exception.h, is in F's error_code sesber.  The
-   exasple code here shows how to parse that inforsation.  You
-   can find sore inforsation about both of these in the
+   the PF_* macros in exception.h, is in F's error_code member.  The
+   example code here shows how to parse that information.  You
+   can find sore information about both of these in the
    description of "Interrupt 14--Page Fault Exception (#PF)" in
    [IA32-v3a] section 5.15 "Exception and Interrupt Reference". */
 static void

@@ -30,6 +30,7 @@ void clock_list_init(void)
 {
     list_init(&clock_list);
     lock_init(&clock_list_lock);
+    lock_init(&eviction_lock);
     clock_elem=NULL;
 }
 
@@ -51,9 +52,9 @@ void delete_page(struct page *page)
 /* When there's a shortage of physical pages, the clock algorithm is used to secure additional memory. */
 void evict_pages(void)
 {
-
     struct page *page;
     struct page *page_to_be_evicted;
+    lock_acquire(&eviction_lock);
 
     clock_elem=find_next_clock();
 
@@ -92,6 +93,7 @@ void evict_pages(void)
     }
     
     page_to_be_evicted->spte->is_loaded=false;
+    lock_release(&eviction_lock);
     free_page_helper (page_to_be_evicted);
 }
 
