@@ -54,7 +54,6 @@ void evict_pages(void)
 {
     struct page *page;
     struct page *page_to_be_evicted;
-    lock_acquire(&eviction_lock);
 
     clock_elem=find_next_clock();
 
@@ -93,7 +92,6 @@ void evict_pages(void)
     }
     
     page_to_be_evicted->spte->is_loaded=false;
-    lock_release(&eviction_lock);
     free_page_helper (page_to_be_evicted);
 }
 
