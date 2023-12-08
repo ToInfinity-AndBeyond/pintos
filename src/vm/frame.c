@@ -93,7 +93,8 @@ void evict_frames(void)
     }
     
     frame_to_be_evicted->spte->is_loaded=false;
-    free_frame_helper (frame_to_be_evicted);
+
+    free_frame(frame_to_be_evicted->paddr);
 
     lock_release(&eviction_lock);
 }
@@ -159,7 +160,7 @@ struct frame *allocate_frame(enum palloc_flags alloc_flag)
 
     /* Insert the frame to the frame_table using add_frame(). */
     add_frame(frame);
-    
+
     if (!wait_for_load)
         lock_release(&clock_list_lock);
 
@@ -173,8 +174,6 @@ void free_frame(void *paddr)
     if (!lock_held_by_current_thread(&eviction_lock))
         lock_acquire(&eviction_lock);
 
-    // struct frame *frame = NULL;
-
     /* Search for the struct page corresponding to the physicall address paddr in the clock_list. */
     struct list_elem *elem = list_begin(&clock_list);
     while (elem != list_end(&clock_list)) {
@@ -182,15 +181,9 @@ void free_frame(void *paddr)
         struct list_elem *elem2 = list_next(elem);
         if (free_frame->paddr == paddr) {
             free_frame_helper(free_frame);
-            // frame = free_frame;
-            // break;
         }
-        // elem = list_next(elem);
         elem = elem2;
     }
-    /* If frame is not null, call free_frame_helper(). */
-    // if(frame != NULL)
-    //     free_frame_helper (frame);
 
     lock_release(&eviction_lock);
     lock_release(&clock_list_lock);
