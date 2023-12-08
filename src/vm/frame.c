@@ -27,10 +27,11 @@ static struct list_elem* find_next_clock(void)
     return clock_elem;
 }
 
-void clock_list_init(void)
+void frame_locks_init(void)
 {
     list_init(&clock_list);
     lock_init(&clock_list_lock);
+    lock_init(&eviction_lock);
     clock_elem=NULL;
 }
 
@@ -52,6 +53,7 @@ void delete_page(struct page *page)
 /* When there's a shortage of physical pages, the clock algorithm is used to secure additional memory. */
 void evict_pages(void)
 {
+    lock_acquire(&eviction_lock);
 
     struct page *page;
     struct page *page_to_be_evicted;
@@ -94,6 +96,8 @@ void evict_pages(void)
     
     page_to_be_evicted->spte->is_loaded = false;
     free_page_helper (page_to_be_evicted);
+
+    lock_release(&eviction_lock);
 }
 
 
@@ -162,7 +166,12 @@ struct page *allocate_page(enum palloc_flags alloc_flag)
 /* By traversing the clock_list, free the page with corresponding paddr. */
 void free_page(void *paddr)
 {
+    /* The order of lock acquire is crucial, because clock_list_lock should always be acquired before
+       eviction_lock to prevent deadlocks. This is the same case for allocate_page. */
     lock_acquire(&clock_list_lock); 
+    if (!lock_held_by_current_thread(&eviction_lock))
+        lock_acquire(&eviction_lock);
+
     struct page *page = NULL;
 
     /* Search for the struct page corresponding to the physicall address paddr in the clock_list. */
@@ -179,6 +188,7 @@ void free_page(void *paddr)
     if(page != NULL)
         free_page_helper (page);
 
+    lock_release(&eviction_lock);
     lock_release(&clock_list_lock);
 }
 /* Helper function to be used in freeing pages. */
