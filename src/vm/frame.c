@@ -4,51 +4,70 @@
 #include "filesys/file.h"
 #include "lib/kernel/bitmap.h"
 
-static struct list frame_table;
+static struct hash frame_table;
 static struct lock frame_table_lock;
-static struct list_elem *clock_elem;
 
-static struct list_elem* find_next_clock(void)
+static struct hash_elem *clock_helem;
+static struct hash_iterator clock_iterator;
+
+static struct hash_elem* find_next_clock(void)
 {
-    if(list_empty(&frame_table))
+    if(hash_empty(&frame_table))
+    {
         return NULL;
-
-    if(clock_elem == NULL || clock_elem == list_end(&frame_table))
-    {
-        return list_begin(&frame_table);
     }
 
-    if (list_next(clock_elem) == list_end(&frame_table))
+    // Moves to the next and returns it
+    struct hash_elem *new_clock = hash_next(&clock_iterator);
+
+    if (clock_helem == NULL || new_clock == NULL)
     {
-        return list_begin(&frame_table);
+        // Go back to start
+        hash_first(&clock_iterator, &frame_table);
+        return hash_next(&clock_iterator);
     }
-    else
-    {
-        return list_next(clock_elem);
-    }
-    return clock_elem;
+
+    return new_clock;
 }
+
+static unsigned frame_hash_func(const struct hash_elem *element, void *aux UNUSED)
+{
+    struct frame *frame = hash_entry(element, struct frame, helem);
+    return hash_bytes(&frame->paddr, sizeof(frame->paddr));
+}
+
+static bool frame_less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED)
+{
+    struct frame *frame_a = hash_entry(a, struct frame, helem);
+    struct frame *frame_b = hash_entry(b, struct frame, helem);
+
+    return frame_a->paddr < frame_b->paddr;
+} 
 
 void frame_table_init(void)
 {
-    list_init(&frame_table);
+    hash_init(&frame_table, frame_hash_func, frame_less_func, NULL);
+    hash_first(&clock_iterator, &frame_table);
     lock_init(&frame_table_lock);
-    clock_elem=NULL;
+    clock_helem=NULL;
 }
 
 /* Add frame to the frame_table. */
 void add_frame(struct frame *frame)
 {
-    list_push_back(&frame_table, &(frame->elem));
+    struct hash_elem *e = hash_insert(&frame_table, &frame->helem);
+    ASSERT(e == NULL);
 }
 
 /* Delete frame from the frame_table. */
 void delete_frame(struct frame *frame)
 {
-    if(&frame->elem == clock_elem) {
-        clock_elem = find_next_clock();
+    if(&frame->helem == clock_helem) {
+        clock_helem = find_next_clock();
     }
-    list_remove(&frame->elem);
+    // list_remove(&frame->helem);
+    struct hash_elem *e = hash_delete(&frame_table, &frame->helem);
+    ASSERT(e != NULL);
 }
 
 /* When there's a shortage of physical frames, the clock algorithm is used to secure additional memory. */
@@ -57,15 +76,15 @@ void evict_frames(void)
     struct frame *frame;
     struct frame *frame_to_be_evicted;
 
-    clock_elem=find_next_clock();
+    clock_helem=find_next_clock();
 
-    frame = list_entry(clock_elem, struct frame, elem);
+    frame = hash_entry(clock_helem, struct frame, helem);
 
     while(frame->spte->pinned || pagedir_is_accessed(frame->thread->pagedir, frame->spte->vaddr))
     {
         pagedir_set_accessed(frame->thread->pagedir, frame->spte->vaddr, false);
-        clock_elem=find_next_clock(); 
-        frame = list_entry(clock_elem, struct frame, elem);
+        clock_helem = find_next_clock(); 
+        frame = hash_entry(clock_helem, struct frame, helem);
     }
     frame_to_be_evicted = frame;
 
@@ -106,7 +125,7 @@ struct frame *allocate_frame(enum palloc_flags alloc_flag)
     while (kpage == NULL)
     {
         evict_frames();
-        kpage=palloc_get_page(alloc_flag);
+        kpage = palloc_get_page(alloc_flag);
     }
 
     /* Initialize the struct frame. */
@@ -127,15 +146,18 @@ void free_frame(void *paddr)
     struct frame *frame = NULL;
 
     /* Search for the struct frame corresponding to the physical address paddr in the frame_table. */
-    struct list_elem *elem = list_begin(&frame_table);
-    while (elem != list_end(&frame_table)) {
-        struct frame* free_frame = list_entry(elem, struct frame, elem);
-        if (free_frame->paddr == paddr) {
+    struct hash_iterator i;
+    hash_first(&i, &frame_table);
+    while (hash_next(&i))
+    {
+        struct frame *free_frame = hash_entry(hash_cur(&i), struct frame, helem);
+        if (free_frame->paddr == paddr)
+        {
             frame = free_frame;
             break;
         }
-        elem = list_next(elem);
     }
+
     /* If frame is not null, call free_frame_helper(). */
     if(frame != NULL)
         free_frame_helper (frame);

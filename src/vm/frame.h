@@ -2,7 +2,6 @@
 #define VM_FRAME_H
 
 #include <hash.h>
-#include <list.h>
 #include "threads/synch.h"
 #include "vm/page.h"
 #include "threads/palloc.h"
@@ -13,7 +12,7 @@ struct frame {
   void *paddr;
   struct spt_entry *spte;
   struct thread *thread;
-  struct list_elem elem;
+  struct hash_elem helem;
 };
 
 void frame_table_init(void);
