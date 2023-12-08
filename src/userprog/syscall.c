@@ -13,6 +13,8 @@
 #include "vm/frame.h"
 #include "vm/page.h"
 #include "devices/swap.h"
+#include "lib/kernel/stdio.h"
+#include "lib/stdio.h"
 
 #define STDIN 0
 #define STDOUT 1

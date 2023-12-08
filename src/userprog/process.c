@@ -21,6 +21,7 @@
 #include "userprog/syscall.h"
 #include "vm/frame.h"
 #include "devices/swap.h"
+#include "lib/stdio.h"
 
 #define LIMIT_STACK_SIZE 8*1024*1024
 #define PUSH_SIZE 4

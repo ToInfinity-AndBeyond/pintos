@@ -168,21 +168,24 @@ void free_frame(void *paddr)
     if (!lock_held_by_current_thread(&eviction_lock))
         lock_acquire(&eviction_lock);
 
-    struct frame *frame = NULL;
+    // struct frame *frame = NULL;
 
     /* Search for the struct page corresponding to the physicall address paddr in the clock_list. */
     struct list_elem *elem = list_begin(&clock_list);
     while (elem != list_end(&clock_list)) {
         struct frame* free_frame = list_entry(elem, struct frame, clock_elem);
+        struct list_elem *elem2 = list_next(elem);
         if (free_frame->paddr == paddr) {
-            frame = free_frame;
-            break;
+            free_frame_helper(free_frame);
+            // frame = free_frame;
+            // break;
         }
-        elem = list_next(elem);
+        // elem = list_next(elem);
+        elem = elem2;
     }
     /* If frame is not null, call free_frame_helper(). */
-    if(frame != NULL)
-        free_frame_helper (frame);
+    // if(frame != NULL)
+    //     free_frame_helper (frame);
 
     lock_release(&eviction_lock);
     lock_release(&clock_list_lock);
