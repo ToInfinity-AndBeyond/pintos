@@ -43,7 +43,6 @@ void spte_initialize(struct spt_entry *spte, enum spt_page_type type, void *addr
 /* Insert spt_entry using hash_insert() function. */
 bool insert_spte(struct hash *spt, struct spt_entry *spte)
 {
-	spte->pinned = false;
 	struct hash_elem* elem = hash_insert (spt, &(spte->elem));
 	if(elem == NULL)
 		return true;
