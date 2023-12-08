@@ -5,68 +5,48 @@
 #include "lib/kernel/bitmap.h"
 #include "userprog/process.h"
 
-static struct hash_elem *clock_helem;
-static struct hash_iterator clock_iterator;
-
-static struct hash_elem* find_next_clock(void)
+static struct list_elem* find_next_clock(void)
 {
-    if (hash_empty(&frame_table))
-    {
+    if(list_empty(&clock_list))
         return NULL;
-    }
 
-    // Moves to the next and returns it
-    struct hash_elem *new_clock = hash_next(&clock_iterator);
-
-    if (clock_helem == NULL || new_clock == NULL)
+    if(clock_elem == NULL || clock_elem == list_end(&clock_list))
     {
-        // Go back to start
-        hash_first(&clock_iterator, &frame_table);
-        return hash_next(&clock_iterator);
+        return list_begin(&clock_list);
     }
 
-    return new_clock;
+    if (list_next(clock_elem) == list_end(&clock_list))
+    {
+        return list_begin(&clock_list);
+    }
+    else
+    {
+        return list_next(clock_elem);
+    }
+    return clock_elem;
 }
-
-static unsigned frame_hash_func(const struct hash_elem *element, void *aux UNUSED)
-{
-    struct frame *frame = hash_entry(element, struct frame, helem);
-    return hash_bytes(&frame->paddr, sizeof(frame->paddr));
-}
-
-static bool frame_less_func(const struct hash_elem *a, const struct hash_elem *b, void *aux UNUSED)
-{
-    struct frame *frame_a = hash_entry(a, struct frame, helem);
-    struct frame *frame_b = hash_entry(b, struct frame, helem);
-
-    return frame_a->paddr < frame_b->paddr;
-} 
 
 void frame_table_init(void)
 {
-    hash_init(&frame_table, frame_hash_func, frame_less_func, NULL);
-    hash_first(&clock_iterator, &frame_table);
+    list_init(&clock_list);
     lock_init(&eviction_lock);
-    lock_init(&frame_table_lock);
-    clock_helem=NULL;
+    lock_init(&clock_list_lock);
+    clock_elem = NULL;
 }
 
 /* Add frame to the frame_table. */
 void add_frame(struct frame *frame)
 {
-    struct hash_elem *e = hash_insert(&frame_table, &frame->helem);
-    ASSERT(e == NULL);
+    list_push_back(&clock_list, &(frame->clock_elem));
 }
 
 /* Delete frame from the frame_table. */
 void delete_frame(struct frame *frame)
 {
-    if(&frame->helem == clock_helem) {
-        clock_helem = find_next_clock();
+    if(&frame->clock_elem==clock_elem) {
+        clock_elem = list_next(clock_elem);
     }
-    // list_remove(&frame->helem);
-    struct hash_elem *e = hash_delete(&frame_table, &frame->helem);
-    ASSERT(e != NULL);
+    list_remove(&frame->clock_elem);
 }
 
 /* When there's a shortage of physical frames, the clock algorithm is used to secure additional memory. */
@@ -76,15 +56,15 @@ void evict_frames(void)
     struct frame *frame;
     struct frame *frame_to_be_evicted;
 
-    clock_helem=find_next_clock();
+    clock_elem=find_next_clock();
 
-    frame = hash_entry(clock_helem, struct frame, helem);
+    frame = list_entry(clock_elem, struct frame, clock_elem);
 
     while(frame->spte->pinned || pagedir_is_accessed(frame->thread->pagedir, frame->spte->vaddr))
     {
         pagedir_set_accessed(frame->thread->pagedir, frame->spte->vaddr, false);
-        clock_helem = find_next_clock(); 
-        frame = hash_entry(clock_helem, struct frame, helem);
+        clock_elem = find_next_clock(); 
+        frame = list_entry(clock_elem, struct frame, clock_elem);
     }
     frame_to_be_evicted = frame;
 
@@ -119,37 +99,37 @@ void evict_frames(void)
 }
 
 
-/* Creates a page with the given spte with the physical address of 
-   a page that loaded the same file. This spte doesn't have to be loaded, but has to be installed*/
-struct page *share_existing_page(struct spt_entry *spte) 
+/* Creates a frame with the given spte with the physical address of 
+   a frame that loaded the same file. This spte doesn't have to be loaded, but has to be installed*/
+struct frame *share_existing_page(struct spt_entry *spte) 
 {
-    // if(spte->writable || spte->type != FILE){
-    //     return NULL;
-    // }
+    if(spte->writable || spte->type != FILE){
+        return NULL;
+    }
 
-    // /* Iterate through the clock_list to find a page loaded with the same file */
-    // struct list_elem *elem = list_begin(&clock_list);
-    // while (elem != list_end(&clock_list)) {
-    //     struct page* pg = list_entry(elem, struct page, clock_elem);
-    //     if (pg->spte->is_loaded && file_compare(pg->spte->file, spte->file)) {
-    //         /* This page loaded the same file, so it can be shared. 
-    //            Setup the share_page, which has the paddr of the loaded page
-    //            and spte of the argument */
-    //         struct page *share_page = malloc(sizeof(struct page));
-    //         if(share_page == NULL) // Failed malloc
-    //             return NULL;
-    //         share_page->paddr = pg->paddr;
-    //         share_page->spte = spte;
-    //         share_page->thread = thread_current();
-    //         /* Add this shared page into the clock_list */
-    //         add_page(share_page);
+    /* Iterate through the clock_list to find a frame loaded with the same file */
+    struct list_elem *elem = list_begin(&clock_list);
+    while (elem != list_end(&clock_list)) {
+        struct frame* pg = list_entry(elem, struct frame, clock_elem);
+        if (pg->spte->is_loaded && file_compare(pg->spte->file, spte->file)) {
+            /* This frame loaded the same file, so it can be shared. 
+               Setup the share_frame, which has the paddr of the loaded frame
+               and spte of the argument */
+            struct frame *share_frame = malloc(sizeof(struct frame));
+            if(share_frame == NULL) // Failed malloc
+                return NULL;
+            share_frame->paddr = pg->paddr;
+            share_frame->spte = spte;
+            share_frame->thread = thread_current();
+            /* Add this shared frame into the clock_list */
+            add_frame(share_frame);
 
-    //         lock_release(&clock_list_lock);
-    //         return share_page;
-    //     }
+            lock_release(&clock_list_lock);
+            return share_frame;
+        }
 
-    //     elem = list_next(elem);
-    // }
+        elem = list_next(elem);
+    }
 
     /* Return false if not found */
     return NULL;
@@ -158,10 +138,10 @@ struct page *share_existing_page(struct spt_entry *spte)
 /* Allocate frame. */
 struct frame *allocate_frame(enum palloc_flags alloc_flag)
 {
-    if (!lock_held_by_current_thread(&frame_table_lock))
-        lock_acquire(&frame_table_lock);
+    if (!lock_held_by_current_thread(&clock_list_lock))
+        lock_acquire(&clock_list_lock);
         
-    /* Allocate page using palloc_get_page(). */
+    /* Allocate frame using palloc_get_page(). */
     uint8_t *kpage = palloc_get_page(alloc_flag);
     while (kpage == NULL)
     {
@@ -176,39 +156,38 @@ struct frame *allocate_frame(enum palloc_flags alloc_flag)
 
     /* Insert the frame to the frame_table using add_frame(). */
     add_frame(frame);
-    lock_release(&frame_table_lock);
+    lock_release(&clock_list_lock);
 
     return frame;
 }
+
 /* By traversing the frame_table, free the frame with corresponding paddr. */
 void free_frame(void *paddr)
 {
-    lock_acquire(&frame_table_lock); 
+    lock_acquire(&clock_list_lock); 
     if (!lock_held_by_current_thread(&eviction_lock))
         lock_acquire(&eviction_lock);
 
     struct frame *frame = NULL;
 
-    /* Search for the struct frame corresponding to the physical address paddr in the frame_table. */
-    struct hash_iterator i;
-    hash_first(&i, &frame_table);
-    while (hash_next(&i))
-    {
-        struct frame *free_frame = hash_entry(hash_cur(&i), struct frame, helem);
-        if (free_frame->paddr == paddr)
-        {
+    /* Search for the struct page corresponding to the physicall address paddr in the clock_list. */
+    struct list_elem *elem = list_begin(&clock_list);
+    while (elem != list_end(&clock_list)) {
+        struct frame* free_frame = list_entry(elem, struct frame, clock_elem);
+        if (free_frame->paddr == paddr) {
             frame = free_frame;
             break;
         }
+        elem = list_next(elem);
     }
-
     /* If frame is not null, call free_frame_helper(). */
     if(frame != NULL)
         free_frame_helper (frame);
 
     lock_release(&eviction_lock);
-    lock_release(&frame_table_lock);
+    lock_release(&clock_list_lock);
 }
+
 /* Helper function to be used in freeing frames. */
 void free_frame_helper (struct frame *frame)
 {
