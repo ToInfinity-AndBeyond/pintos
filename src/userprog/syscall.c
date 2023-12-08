@@ -100,10 +100,14 @@ syscall_init (void)
 /* Checks if virtual address is correct. */
 static void check_pointer(uint32_t *esp, int args_num)
 {
+  lock_acquire(&eviction_lock);
   if (!pagedir_get_page(thread_current() -> pagedir, esp))
   {
+    lock_release(&eviction_lock);
     exit(EXIT_ERROR);
   }
+  lock_release(&eviction_lock);
+
   for (int i = 0; i <= args_num; ++i)
   {
     if (!is_user_vaddr((void *)esp[i]))
@@ -411,15 +415,15 @@ uint32_t sys_munmap(uint32_t *esp)
   struct mmap_entry *mmape = NULL;
   struct list_elem *e1 = list_begin(&cur->mmap_list);
   while (e1 != list_end(&cur->mmap_list)) {
-  struct mmap_entry *mmap_entry = list_entry(e1, struct mmap_entry, elem);
-  
-  if (mmap_entry->mapid == mapid) {
-    mmape = mmap_entry;
-    break;
+    struct mmap_entry *mmap_entry = list_entry(e1, struct mmap_entry, elem);
+    
+    if (mmap_entry->mapid == mapid) {
+      mmape = mmap_entry;
+      break;
+    }
+    
+    e1 = list_next(e1);
   }
-  
-  e1 = list_next(e1);
-}
   if (mmape == NULL)
     return VOID_RET;
 
@@ -432,9 +436,11 @@ uint32_t sys_munmap(uint32_t *esp)
     struct spt_entry *spte = list_entry(e2, struct spt_entry, mmap_elem);
     
     /* Writes the contents of the memory to the disk if a page exists and is dirty. */
+    lock_acquire(&eviction_lock);
     if (spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
       file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
     }
+    lock_release(&eviction_lock);
     
     spte->is_loaded = false;
     list_remove(e2);

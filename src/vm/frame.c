@@ -3,9 +3,7 @@
 #include "userprog/pagedir.h"
 #include "filesys/file.h"
 #include "lib/kernel/bitmap.h"
-
-static struct hash frame_table;
-static struct lock frame_table_lock;
+#include "userprog/process.h"
 
 static struct hash_elem *clock_helem;
 static struct hash_iterator clock_iterator;
@@ -28,6 +26,14 @@ static struct hash_elem* find_next_clock(void)
     }
 
     return new_clock;
+}
+
+void frame_table_init(void)
+{
+    list_init(&clock_list);
+    lock_init(&clock_list_lock);
+    lock_init(&eviction_lock);
+    clock_elem=NULL;
 }
 
 static unsigned frame_hash_func(const struct hash_elem *element, void *aux UNUSED)
@@ -73,6 +79,7 @@ void delete_frame(struct frame *frame)
 /* When there's a shortage of physical frames, the clock algorithm is used to secure additional memory. */
 void evict_frames(void)
 {
+    lock_acquire(&eviction_lock);
     struct frame *frame;
     struct frame *frame_to_be_evicted;
 
@@ -114,12 +121,53 @@ void evict_frames(void)
     
     frame_to_be_evicted->spte->is_loaded=false;
     free_frame_helper (frame_to_be_evicted);
+
+    lock_release(&eviction_lock);
+}
+
+
+/* Creates a page with the given spte with the physical address of 
+   a page that loaded the same file. This spte doesn't have to be loaded, but has to be installed*/
+struct page *share_existing_page(struct spt_entry *spte) 
+{
+    // if(spte->writable || spte->type != FILE){
+    //     return NULL;
+    // }
+
+    // /* Iterate through the clock_list to find a page loaded with the same file */
+    // struct list_elem *elem = list_begin(&clock_list);
+    // while (elem != list_end(&clock_list)) {
+    //     struct page* pg = list_entry(elem, struct page, clock_elem);
+    //     if (pg->spte->is_loaded && file_compare(pg->spte->file, spte->file)) {
+    //         /* This page loaded the same file, so it can be shared. 
+    //            Setup the share_page, which has the paddr of the loaded page
+    //            and spte of the argument */
+    //         struct page *share_page = malloc(sizeof(struct page));
+    //         if(share_page == NULL) // Failed malloc
+    //             return NULL;
+    //         share_page->paddr = pg->paddr;
+    //         share_page->spte = spte;
+    //         share_page->thread = thread_current();
+    //         /* Add this shared page into the clock_list */
+    //         add_page(share_page);
+
+    //         lock_release(&clock_list_lock);
+    //         return share_page;
+    //     }
+
+    //     elem = list_next(elem);
+    // }
+
+    /* Return false if not found */
+    return NULL;
 }
 
 /* Allocate frame. */
 struct frame *allocate_frame(enum palloc_flags alloc_flag)
 {
-    lock_acquire(&frame_table_lock);
+    if (!lock_held_by_current_thread(&frame_table_lock))
+        lock_acquire(&frame_table_lock);
+        
     /* Allocate page using palloc_get_page(). */
     uint8_t *kpage = palloc_get_page(alloc_flag);
     while (kpage == NULL)
@@ -143,6 +191,9 @@ struct frame *allocate_frame(enum palloc_flags alloc_flag)
 void free_frame(void *paddr)
 {
     lock_acquire(&frame_table_lock); 
+    if (!lock_held_by_current_thread(&eviction_lock))
+        lock_acquire(&eviction_lock);
+
     struct frame *frame = NULL;
 
     /* Search for the struct frame corresponding to the physical address paddr in the frame_table. */
@@ -162,6 +213,7 @@ void free_frame(void *paddr)
     if(frame != NULL)
         free_frame_helper (frame);
 
+    lock_release(&eviction_lock);
     lock_release(&frame_table_lock);
 }
 /* Helper function to be used in freeing frames. */

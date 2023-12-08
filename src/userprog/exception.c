@@ -166,18 +166,23 @@ page_fault (struct intr_frame *f)
    
    if (not_present)
    {
+      /* Check the current thread's spt for the faulting address */
       struct spt_entry *spte = find_spte(fault_addr);
       if (spte == NULL)
       {
          /* If not in the supplemental page table, check if it is a stack */
          if (!check_stack_esp(fault_addr, f->esp))
             exit(EXIT_ERROR);
-         else 
+         else {
             expand_stack(fault_addr);
+         }
          return;
       }
 
-      if (!page_fault_helper(spte))
+      /* If in the supplemental page table, try to load it or share from existing page */
+      bool page_success = page_fault_helper(spte);
+
+      if (!page_success)
       {
          exit(EXIT_ERROR);
       }

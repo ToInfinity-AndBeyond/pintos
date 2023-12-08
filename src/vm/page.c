@@ -59,6 +59,9 @@ bool delete_spte(struct hash *spt, struct spt_entry *spte)
 		return false;
 	else
 	{
+		/* free_page will acquire eviction_lock only if the thread is not holding it.
+		   free_page will eventually release eviction_lock before its return */
+		lock_acquire(&eviction_lock);
 		free_frame(pagedir_get_page (thread_current ()->pagedir, spte->vaddr));
 		free(spte);
 		return true;
@@ -86,6 +89,7 @@ struct spt_entry *find_spte(void *vaddr)
 static void spt_destroy_helper(struct hash_elem *elem, void *aux UNUSED)
 {
 	struct spt_entry *spte = hash_entry(elem, struct spt_entry, elem);
+	lock_acquire(&eviction_lock);
 	free_frame(pagedir_get_page (thread_current ()->pagedir, spte->vaddr));
 	free(spte);
 }
@@ -102,11 +106,13 @@ bool load_file(void* paddr, struct spt_entry *spte)
 	ASSERT(paddr != NULL);
 	ASSERT(spte != NULL);
 	ASSERT(spte->type == ZERO || spte->type == FILE);
+	lock_acquire(&eviction_lock);
 	int a = file_read_at(spte->file, paddr, spte->read_bytes, spte->offset);
 	if (a != (int) spte->read_bytes)
 	{
 		return false;
 	}
     memset (paddr + spte->read_bytes, 0, spte->zero_bytes);
+	lock_release(&eviction_lock);
   	return true;
 }

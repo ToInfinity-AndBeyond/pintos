@@ -23,7 +23,8 @@
 #include "devices/swap.h"
 
 #define LIMIT_STACK_SIZE 8*1024*1024
-#define ADDRESS_SIZE 32
+#define PUSH_SIZE 4
+#define PUSHA_SIZE 32
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -272,9 +273,13 @@ process_exit (void)
       struct list_elem *next_elem2 = list_next(elem2);
 
       struct spt_entry *spte = list_entry(elem2, struct spt_entry, mmap_elem);
+
+      lock_acquire(&eviction_lock);
       if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
         file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
       }
+      lock_release(&eviction_lock);
+
       spte->is_loaded = false;
       list_remove(elem2);
 
@@ -705,16 +710,20 @@ install_page (void *upage, void *kpage, bool writable)
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  lock_acquire(&eviction_lock);
+  bool install_success = pagedir_get_page (t->pagedir, upage) == NULL 
+                         && pagedir_set_page (t->pagedir, upage, kpage, writable);
+  lock_release(&eviction_lock);
+  return install_success;
 }
 
 /* Checks if it is possible to expand stack. */
 bool
 check_stack_esp(void *addr, void *esp)
 {
-  return is_user_vaddr(pg_round_down(addr)) && addr >= esp - ADDRESS_SIZE 
-         && addr >= (PHYS_BASE - LIMIT_STACK_SIZE);
+  return is_user_vaddr(pg_round_down(addr)) && 
+         (addr >= esp || addr == esp  - PUSH_SIZE || addr == esp - PUSHA_SIZE) &&
+         addr >= (PHYS_BASE - LIMIT_STACK_SIZE);
 }
 
 /* Expand stack to include addr. */
@@ -750,6 +759,22 @@ bool expand_stack(void *addr)
 /* When page fault occurs, allocate physical page. */
 bool page_fault_helper(struct spt_entry *spte)
 {
+  /* Check if the file can be shared */
+  lock_acquire(&clock_list_lock);
+  struct page* share_page = share_existing_page(spte);
+  if (share_page) {
+    /* If the file can be shared, install the page*/
+    if(!install_page(share_page->spte->vaddr, share_page->paddr, share_page->spte->writable)) {
+      /* Remove the share_page if install_page failed. 
+         We shouldn't call free_page because the original shared page shouldn't be removed */
+      delete_page(share_page);
+      free(share_page);
+      return false;
+    }
+
+    share_page->spte->is_loaded = true;
+    return true;
+  }
 
   struct frame *kframe = allocate_frame(PAL_USER);
   kframe->spte=spte;
@@ -776,6 +801,9 @@ bool page_fault_helper(struct spt_entry *spte)
     return false;
   }
   spte->is_loaded=true;
+
+  if (lock_held_by_current_thread(&clock_list_lock))
+    lock_release(&clock_list_lock);
 
   return true;
 }
