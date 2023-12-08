@@ -272,9 +272,13 @@ process_exit (void)
       struct list_elem *next_elem2 = list_next(elem2);
 
       struct spt_entry *spte = list_entry(elem2, struct spt_entry, mmap_elem);
+
+      lock_acquire(&eviction_lock);
       if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
         file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
       }
+      lock_release(&eviction_lock);
+
       spte->is_loaded = false;
       list_remove(elem2);
 
@@ -704,8 +708,11 @@ install_page (void *upage, void *kpage, bool writable)
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  lock_acquire(&eviction_lock);
+  bool install_success = pagedir_get_page (t->pagedir, upage) == NULL 
+                         && pagedir_set_page (t->pagedir, upage, kpage, writable);
+  lock_release(&eviction_lock);
+  return install_success;
 }
 
 /* Checks if it is possible to expand stack. */

@@ -134,7 +134,7 @@ main (void)
 #ifdef VM
   /* Initialise the swap disk */  
   swap_init ();
-  clock_list_init ();
+  frame_locks_init ();
 #endif
 
   printf ("Boot complete.\n");
