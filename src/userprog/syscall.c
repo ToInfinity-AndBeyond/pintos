@@ -63,6 +63,7 @@ static uint32_t (*syscall_func[]) (uint32_t *esp) =
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
+/* */
 static void
 check_spte_address(void *str, unsigned size, void *esp)
 {
