@@ -60,7 +60,7 @@ void evict_frames(void)
 
     frame = list_entry(clock_elem, struct frame, clock_elem);
 
-    while(frame->spte->pinned || pagedir_is_accessed(frame->thread->pagedir, frame->spte->vaddr))
+    while(pagedir_is_accessed(frame->thread->pagedir, frame->spte->vaddr))
     {
         pagedir_set_accessed(frame->thread->pagedir, frame->spte->vaddr, false);
         clock_elem = find_next_clock(); 

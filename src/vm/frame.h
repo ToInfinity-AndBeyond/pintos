@@ -9,10 +9,10 @@
 #include "devices/swap.h"
 
 struct frame {
-  void *paddr;
-  struct spt_entry *spte;
-  struct thread *thread;
-  struct list_elem clock_elem;
+  void *paddr;                  /* Physical address */
+  struct spt_entry *spte;       /* Supplemental page table entry */
+  struct thread *thread;        /* Owning thread */
+  struct list_elem clock_elem;  /* Allows insertion into frame table */
 };
 
 struct lock clock_list_lock;
