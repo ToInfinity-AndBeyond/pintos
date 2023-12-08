@@ -173,13 +173,20 @@ page_fault (struct intr_frame *f)
          /* If not in the supplemental page table, check if it is a stack */
          if (!check_stack_esp(fault_addr, f->esp))
             exit(EXIT_ERROR);
-         else 
+         else {
+            lock_acquire(&clock_list_lock);
             expand_stack(fault_addr);
+            lock_release(&clock_list_lock);
+         }
          return;
       }
 
       /* If in the supplemental page table, try to load it or share from existing page */
-      if (!page_fault_helper(spte))
+      lock_acquire(&clock_list_lock);
+      bool page_success = page_fault_helper(spte);
+      lock_release(&clock_list_lock);
+
+      if (!page_success)
       {
          exit(EXIT_ERROR);
       }

@@ -105,7 +105,7 @@ struct page *share_existing_page(struct spt_entry *spte)
         return NULL;
     }
 
-    lock_acquire(&clock_list_lock);
+    // lock_acquire(&clock_list_lock);
 
     /* Iterate through the clock_list to find a page loaded with the same file */
     struct list_elem *elem = list_begin(&clock_list);
@@ -124,15 +124,14 @@ struct page *share_existing_page(struct spt_entry *spte)
             /* Add this shared page into the clock_list */
             add_page(share_page);
 
-            lock_release(&clock_list_lock);
-            // printf("Shared page!!!\n");
+            // lock_release(&clock_list_lock);
             return share_page;
         }
 
         elem = list_next(elem);
     }
 
-    lock_release(&clock_list_lock);
+    // lock_release(&clock_list_lock);
     /* Return false if not found */
     return NULL;
 }
@@ -140,7 +139,7 @@ struct page *share_existing_page(struct spt_entry *spte)
 /* Allocate page. */
 struct page *allocate_page(enum palloc_flags alloc_flag)
 {
-    lock_acquire(&clock_list_lock);
+    // lock_acquire(&clock_list_lock);
     /* Allocate page using palloc_get_page(). */
     uint8_t *kpage = palloc_get_page(alloc_flag);
     while (kpage == NULL)
@@ -156,14 +155,14 @@ struct page *allocate_page(enum palloc_flags alloc_flag)
 
     /* Insert the page to the clock_list using add_page(). */
     add_page(page);
-    lock_release(&clock_list_lock);
+    // lock_release(&clock_list_lock);
 
     return page;
 }
 /* By traversing the clock_list, free the page with corresponding paddr. */
 void free_page(void *paddr)
 {
-    lock_acquire(&clock_list_lock); 
+    // lock_acquire(&clock_list_lock); 
     struct page *page = NULL;
 
     /* Search for the struct page corresponding to the physicall address paddr in the clock_list. */
@@ -180,7 +179,7 @@ void free_page(void *paddr)
     if(page != NULL)
         free_page_helper (page);
 
-    lock_release(&clock_list_lock);
+    // lock_release(&clock_list_lock);
 }
 /* Helper function to be used in freeing pages. */
 void free_page_helper (struct page *page)
