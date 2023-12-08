@@ -138,8 +138,11 @@ struct frame *share_existing_page(struct spt_entry *spte)
 /* Allocate frame. */
 struct frame *allocate_frame(enum palloc_flags alloc_flag)
 {
-    if (!lock_held_by_current_thread(&clock_list_lock))
+    bool wait_for_load = true;
+    if (!lock_held_by_current_thread(&clock_list_lock)) {
+        wait_for_load = false;
         lock_acquire(&clock_list_lock);
+    }
         
     /* Allocate frame using palloc_get_page(). */
     uint8_t *kpage = palloc_get_page(alloc_flag);
@@ -156,7 +159,9 @@ struct frame *allocate_frame(enum palloc_flags alloc_flag)
 
     /* Insert the frame to the frame_table using add_frame(). */
     add_frame(frame);
-    lock_release(&clock_list_lock);
+    
+    if (!wait_for_load)
+        lock_release(&clock_list_lock);
 
     return frame;
 }

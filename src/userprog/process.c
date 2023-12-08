@@ -675,7 +675,7 @@ setup_stack (void **esp)
   }
 
   /* Initialize spt entry, and insert it to the hash table. */
-  kframe = allocate_frame (PAL_USER | PAL_ZERO);
+  kframe =  allocate_frame(PAL_USER | PAL_ZERO);
   if (install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kframe->paddr, true))
   {
     *esp = PHYS_BASE;
@@ -770,10 +770,11 @@ bool page_fault_helper(struct spt_entry *spte)
          We shouldn't call free_page because the original shared page shouldn't be removed */
       delete_frame(share_page);
       free(share_page);
+      lock_release(&clock_list_lock);
       return false;
     }
-
     share_page->spte->is_loaded = true;
+    lock_release(&clock_list_lock);
     return true;
   }
 
@@ -786,6 +787,7 @@ bool page_fault_helper(struct spt_entry *spte)
     if (!load_file(kframe->paddr, spte))
     {
       free_frame(kframe->paddr);
+      lock_release(&clock_list_lock);
       return false;
     }
   } 
@@ -799,12 +801,12 @@ bool page_fault_helper(struct spt_entry *spte)
   if (!install_page (spte->vaddr, kframe->paddr, spte->writable))
   {
     free_frame (kframe->paddr);
+    lock_release(&clock_list_lock);
     return false;
   }
   spte->is_loaded=true;
-
-  if (lock_held_by_current_thread(&clock_list_lock))
-    lock_release(&clock_list_lock);
+  
+  lock_release(&clock_list_lock);
 
   return true;
 }
