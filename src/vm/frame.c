@@ -109,8 +109,6 @@ struct page *share_existing_page(struct spt_entry *spte)
         return NULL;
     }
 
-    lock_acquire(&clock_list_lock);
-
     /* Iterate through the clock_list to find a page loaded with the same file */
     struct list_elem *elem = list_begin(&clock_list);
     while (elem != list_end(&clock_list)) {
@@ -135,7 +133,6 @@ struct page *share_existing_page(struct spt_entry *spte)
         elem = list_next(elem);
     }
 
-    lock_release(&clock_list_lock);
     /* Return false if not found */
     return NULL;
 }
@@ -143,7 +140,8 @@ struct page *share_existing_page(struct spt_entry *spte)
 /* Allocate page. */
 struct page *allocate_page(enum palloc_flags alloc_flag)
 {
-    lock_acquire(&clock_list_lock);
+    if (!lock_held_by_current_thread(&clock_list_lock))
+        lock_acquire(&clock_list_lock);
     /* Allocate page using palloc_get_page(). */
     uint8_t *kpage = palloc_get_page(alloc_flag);
     while (kpage == NULL)
@@ -173,7 +171,6 @@ void free_page(void *paddr)
         lock_acquire(&eviction_lock);
 
     struct page *page = NULL;
-
     /* Search for the struct page corresponding to the physicall address paddr in the clock_list. */
     struct list_elem *elem = list_begin(&clock_list);
     while (elem != list_end(&clock_list)) {

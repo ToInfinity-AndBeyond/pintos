@@ -757,6 +757,7 @@ bool expand_stack(void *addr)
 bool page_fault_helper(struct spt_entry *spte)
 {
   /* Check if the file can be shared */
+  lock_acquire(&clock_list_lock);
   struct page* share_page = share_existing_page(spte);
   if (share_page) {
     /* If the file can be shared, install the page*/
@@ -796,6 +797,9 @@ bool page_fault_helper(struct spt_entry *spte)
     return false;
   }
   spte->is_loaded=true;
+
+  if (lock_held_by_current_thread(&clock_list_lock))
+    lock_release(&clock_list_lock);
 
   return true;
 }
