@@ -23,7 +23,8 @@
 #include "devices/swap.h"
 
 #define LIMIT_STACK_SIZE 8*1024*1024
-#define ADDRESS_SIZE 32
+#define PUSH_SIZE 4
+#define PUSHA_SIZE 32
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -176,6 +177,7 @@ start_process (void *file_name_)
     }
   }
   strlcpy(thread_name, file_name, i + 1);
+  /* Initialize hash table spt. */
   spt_init(&(thread_current() -> spt));
   
   /* Initialize interrupt frame and load executable. */
@@ -271,9 +273,13 @@ process_exit (void)
       struct list_elem *next_elem2 = list_next(elem2);
 
       struct spt_entry *spte = list_entry(elem2, struct spt_entry, mmap_elem);
+
+      lock_acquire(&eviction_lock);
       if(spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
         file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
       }
+      lock_release(&eviction_lock);
+
       spte->is_loaded = false;
       list_remove(elem2);
 
@@ -288,6 +294,7 @@ process_exit (void)
 		elem = next_elem;
 	}
 
+  /* After removing mmap_entry and spt_entry, destory hash table spt. */
   spt_destroy(&cur->spt);
 
   /* Destroy the current process's page directory and switch back
@@ -658,7 +665,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp) 
 {
-  struct page *kpage;
+  struct frame *kframe;
 
   struct spt_entry *spte = malloc(sizeof(struct spt_entry));
   if (spte == NULL)
@@ -667,8 +674,8 @@ setup_stack (void **esp)
   }
 
   /* Initialize spt entry, and insert it to the hash table. */
-  kpage = allocate_page (PAL_USER | PAL_ZERO);
-  if (install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage->paddr, true))
+  kframe = allocate_frame (PAL_USER | PAL_ZERO);
+  if (install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kframe->paddr, true))
   {
     *esp = PHYS_BASE;
     spte->type = SWAP;
@@ -676,12 +683,12 @@ setup_stack (void **esp)
 		spte->writable = true;
 		spte->is_loaded = true;
 
-    kpage->spte = spte;
+    kframe->spte = spte;
     insert_spte(&(thread_current() -> spt), spte);
   }
   else
   {
-    free_page(kpage->paddr);
+    free_frame(kframe->paddr);
     return false;
   }
   return true;
@@ -703,16 +710,20 @@ install_page (void *upage, void *kpage, bool writable)
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  lock_acquire(&eviction_lock);
+  bool install_success = pagedir_get_page (t->pagedir, upage) == NULL 
+                         && pagedir_set_page (t->pagedir, upage, kpage, writable);
+  lock_release(&eviction_lock);
+  return install_success;
 }
 
 /* Checks if it is possible to expand stack. */
 bool
 check_stack_esp(void *addr, void *esp)
 {
-  return is_user_vaddr(pg_round_down(addr)) && addr >= esp - ADDRESS_SIZE 
-         && addr >= (PHYS_BASE - LIMIT_STACK_SIZE);
+  return is_user_vaddr(pg_round_down(addr)) && 
+         (addr >= esp || addr == esp  - PUSH_SIZE || addr == esp - PUSHA_SIZE) &&
+         addr >= (PHYS_BASE - LIMIT_STACK_SIZE);
 }
 
 /* Expand stack to include addr. */
@@ -724,19 +735,20 @@ bool expand_stack(void *addr)
     return false;
   }
 
-  struct page *kpage = allocate_page(PAL_USER | PAL_ZERO);
+  struct frame *kframe = allocate_frame(PAL_USER | PAL_ZERO);
 
 	spte->type=SWAP;
 	spte->vaddr=pg_round_down(addr);
 	spte->writable=true;
 	spte->is_loaded=true;
 	insert_spte(&thread_current()->spt, spte);
-	kpage->spte=spte;
+	kframe->spte=spte;
   
-
-	if(!install_page(spte->vaddr, kpage->paddr, spte->writable))
+  /* Create page table using install_page, and if install_page
+     fails, free the resources. */
+	if(!install_page(spte->vaddr, kframe->paddr, spte->writable))
 	{
-		free_page(kpage->paddr);
+		free_frame(kframe->paddr);
 		free(spte);
 		return false;
 	}
@@ -747,31 +759,51 @@ bool expand_stack(void *addr)
 /* When page fault occurs, allocate physical page. */
 bool page_fault_helper(struct spt_entry *spte)
 {
+  /* Check if the file can be shared */
+  lock_acquire(&clock_list_lock);
+  struct frame* share_page = share_existing_page(spte);
+  if (share_page) {
+    /* If the file can be shared, install the page*/
+    if(!install_page(share_page->spte->vaddr, share_page->paddr, share_page->spte->writable)) {
+      /* Remove the share_page if install_page failed. 
+         We shouldn't call free_page because the original shared page shouldn't be removed */
+      delete_frame(share_page);
+      free(share_page);
+      return false;
+    }
 
-  struct page *kpage = allocate_page(PAL_USER);
-  kpage->spte=spte;
+    share_page->spte->is_loaded = true;
+    return true;
+  }
+
+  struct frame *kframe = allocate_frame(PAL_USER);
+  kframe->spte=spte;
 
   if (spte->type == ZERO || spte->type == FILE)
   {
     /* Invoking load_file() loads a file from the disk into physical pages. */
-    if (!load_file(kpage->paddr, spte))
+    if (!load_file(kframe->paddr, spte))
     {
-      free_page(kpage->paddr);
+      free_frame(kframe->paddr);
       return false;
     }
   } 
   else 
   {
-    swap_in(kpage->paddr, spte->swap_slot);
+    /* If the type of spte is SWAP, swap in the resources. */
+    swap_in(kframe->paddr, spte->swap_slot);
   }
 
    /* Maps the virtual address to the physical address in the page table. */
-  if (!install_page (spte->vaddr, kpage->paddr, spte->writable))
+  if (!install_page (spte->vaddr, kframe->paddr, spte->writable))
   {
-    free_page (kpage->paddr);
+    free_frame (kframe->paddr);
     return false;
   }
   spte->is_loaded=true;
+
+  if (lock_held_by_current_thread(&clock_list_lock))
+    lock_release(&clock_list_lock);
 
   return true;
 }

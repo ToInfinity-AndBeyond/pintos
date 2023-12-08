@@ -63,6 +63,8 @@ static uint32_t (*syscall_func[]) (uint32_t *esp) =
 static void syscall_handler (struct intr_frame *f);
 void syscall_init(void);
 
+/* Checks if address exists in the spt_entry 
+   and checks if buffer's address is valid address. */
 static void
 check_spte_address(void *str, unsigned size, void *esp)
 {
@@ -95,13 +97,17 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-/* Checks if virtual address is correct*/
+/* Checks if virtual address is correct. */
 static void check_pointer(uint32_t *esp, int args_num)
 {
+  lock_acquire(&eviction_lock);
   if (!pagedir_get_page(thread_current() -> pagedir, esp))
   {
+    lock_release(&eviction_lock);
     exit(EXIT_ERROR);
   }
+  lock_release(&eviction_lock);
+
   for (int i = 0; i <= args_num; ++i)
   {
     if (!is_user_vaddr((void *)esp[i]))
@@ -362,7 +368,7 @@ uint32_t sys_mmap(uint32_t *esp)
   }
 
   /* Initialize mmap_entry, and if failed, return -1
-     This is done separately from the invalid cases, as mmape must be freed */
+     This is done separately from the invalid cases, as mmape must be freed. */
   struct mmap_entry *mmape = malloc(sizeof(struct mmap_entry));
   if (mmape == NULL) 
   {
@@ -405,7 +411,7 @@ uint32_t sys_mmap(uint32_t *esp)
   {
     size_t page_read_bytes = read_bytes_size < PGSIZE ? read_bytes_size : PGSIZE;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
-    
+  
     struct spt_entry *spte = malloc(sizeof(struct spt_entry));
     spte_initialize(spte, FILE, addr, mmape->file, true, false, offset, page_read_bytes, page_zero_bytes);
     list_push_back(&(mmape->spte_list), &(spte->mmap_elem));
@@ -429,15 +435,15 @@ uint32_t sys_munmap(uint32_t *esp)
   struct mmap_entry *mmape = NULL;
   struct list_elem *e1 = list_begin(&cur->mmap_list);
   while (e1 != list_end(&cur->mmap_list)) {
-  struct mmap_entry *mmap_entry = list_entry(e1, struct mmap_entry, elem);
-  
-  if (mmap_entry->mapid == mapid) {
-    mmape = mmap_entry;
-    break;
+    struct mmap_entry *mmap_entry = list_entry(e1, struct mmap_entry, elem);
+    
+    if (mmap_entry->mapid == mapid) {
+      mmape = mmap_entry;
+      break;
+    }
+    
+    e1 = list_next(e1);
   }
-  
-  e1 = list_next(e1);
-}
   if (mmape == NULL)
     return VOID_RET;
 
@@ -450,9 +456,11 @@ uint32_t sys_munmap(uint32_t *esp)
     struct spt_entry *spte = list_entry(e2, struct spt_entry, mmap_elem);
     
     /* Writes the contents of the memory to the disk if a page exists and is dirty. */
+    lock_acquire(&eviction_lock);
     if (spte->is_loaded && pagedir_is_dirty(thread_current()->pagedir, spte->vaddr)) {
       file_write_at(spte->file, spte->vaddr, spte->read_bytes, spte->offset);
     }
+    lock_release(&eviction_lock);
     
     spte->is_loaded = false;
     list_remove(e2);
