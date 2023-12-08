@@ -658,7 +658,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp) 
 {
-  struct page *kpage;
+  struct frame *kframe;
 
   struct spt_entry *spte = malloc(sizeof(struct spt_entry));
   if (spte == NULL)
@@ -667,8 +667,8 @@ setup_stack (void **esp)
   }
 
   /* Initialize spt entry, and insert it to the hash table. */
-  kpage = allocate_page (PAL_USER | PAL_ZERO);
-  if (install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage->paddr, true))
+  kframe = allocate_frame (PAL_USER | PAL_ZERO);
+  if (install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kframe->paddr, true))
   {
     *esp = PHYS_BASE;
     spte->type = SWAP;
@@ -676,12 +676,12 @@ setup_stack (void **esp)
 		spte->writable = true;
 		spte->is_loaded = true;
 
-    kpage->spte = spte;
+    kframe->spte = spte;
     insert_spte(&(thread_current() -> spt), spte);
   }
   else
   {
-    free_page(kpage->paddr);
+    free_frame(kframe->paddr);
     return false;
   }
   return true;
@@ -724,19 +724,19 @@ bool expand_stack(void *addr)
     return false;
   }
 
-  struct page *kpage = allocate_page(PAL_USER | PAL_ZERO);
+  struct frame *kframe = allocate_frame(PAL_USER | PAL_ZERO);
 
 	spte->type=SWAP;
 	spte->vaddr=pg_round_down(addr);
 	spte->writable=true;
 	spte->is_loaded=true;
 	insert_spte(&thread_current()->spt, spte);
-	kpage->spte=spte;
+	kframe->spte=spte;
   
 
-	if(!install_page(spte->vaddr, kpage->paddr, spte->writable))
+	if(!install_page(spte->vaddr, kframe->paddr, spte->writable))
 	{
-		free_page(kpage->paddr);
+		free_frame(kframe->paddr);
 		free(spte);
 		return false;
 	}
@@ -748,27 +748,27 @@ bool expand_stack(void *addr)
 bool page_fault_helper(struct spt_entry *spte)
 {
 
-  struct page *kpage = allocate_page(PAL_USER);
-  kpage->spte=spte;
+  struct frame *kframe = allocate_frame(PAL_USER);
+  kframe->spte=spte;
 
   if (spte->type == ZERO || spte->type == FILE)
   {
     /* Invoking load_file() loads a file from the disk into physical pages. */
-    if (!load_file(kpage->paddr, spte))
+    if (!load_file(kframe->paddr, spte))
     {
-      free_page(kpage->paddr);
+      free_frame(kframe->paddr);
       return false;
     }
   } 
   else 
   {
-    swap_in(kpage->paddr, spte->swap_slot);
+    swap_in(kframe->paddr, spte->swap_slot);
   }
 
    /* Maps the virtual address to the physical address in the page table. */
-  if (!install_page (spte->vaddr, kpage->paddr, spte->writable))
+  if (!install_page (spte->vaddr, kframe->paddr, spte->writable))
   {
-    free_page (kpage->paddr);
+    free_frame (kframe->paddr);
     return false;
   }
   spte->is_loaded=true;

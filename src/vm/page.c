@@ -59,7 +59,7 @@ bool delete_spte(struct hash *spt, struct spt_entry *spte)
 		return false;
 	else
 	{
-		free_page(pagedir_get_page (thread_current ()->pagedir, spte->vaddr));
+		free_frame(pagedir_get_page (thread_current ()->pagedir, spte->vaddr));
 		free(spte);
 		return true;
 	}
@@ -82,11 +82,11 @@ struct spt_entry *find_spte(void *vaddr)
 		return NULL;
 }
 
-/* A helper function to be used in spt_destory() function. */
+/* A helper function to be used in spt_destroy() function. */
 static void spt_destroy_helper(struct hash_elem *elem, void *aux UNUSED)
 {
 	struct spt_entry *spte = hash_entry(elem, struct spt_entry, elem);
-	free_page(pagedir_get_page (thread_current ()->pagedir, spte->vaddr));
+	free_frame(pagedir_get_page (thread_current ()->pagedir, spte->vaddr));
 	free(spte);
 }
 
