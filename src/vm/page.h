@@ -5,6 +5,7 @@
 #include <list.h>
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "filesys/off_t.h"
 
 
 enum spt_page_type {
@@ -40,15 +41,10 @@ struct mmap_entry {
   struct list spte_list; 
 };
 
-// put hash_elem to find the hash interface
-struct page {
-  void *paddr;    
-  struct spt_entry *spte;   
-  struct thread *thread;  
-  struct list_elem clock_elem;  
-};
-
 void spt_init(struct hash *spt);
+void spte_initialize(struct spt_entry *spte, enum spt_page_type type, void *addr,
+                     struct file *file, bool writable, bool is_loaded, off_t offset,
+                     size_t page_read_bytes, size_t page_zero_bytes);
 bool insert_spte(struct hash *spt, struct spt_entry *spte);
 bool delete_spte(struct hash *spt, struct spt_entry *spte);
 

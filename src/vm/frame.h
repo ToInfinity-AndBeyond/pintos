@@ -2,24 +2,32 @@
 #define VM_FRAME_H
 
 #include <hash.h>
-#include <list.h>
 #include "threads/synch.h"
 #include "vm/page.h"
 #include "threads/palloc.h"
 #include "threads/vaddr.h"
 #include "devices/swap.h"
 
+struct frame {
+  void *paddr;
+  struct spt_entry *spte;
+  struct thread *thread;
+  struct hash_elem helem;
+};
 
-struct list clock_list;
-struct lock clock_list_lock;
+struct hash frame_table;
+struct lock frame_table_lock;
 struct lock eviction_lock;
 struct list_elem *clock_elem;
 
-void frame_locks_init(void);
-void delete_page(struct page *page);
+void frame_table_init(void);
+void add_frame(struct frame* frame);
+void delete_frame(struct frame *frame);
 
-struct page *share_existing_page(struct spt_entry *spte);
-struct page *allocate_page(enum palloc_flags alloc_flag);
-void free_page(void *paddr);
+void evict_frames(void);
+struct page *share_existing_page(struct spt_entry *spte) 
+struct frame *allocate_frame(enum palloc_flags alloc_flag);
+void free_frame(void *paddr);
+void free_frame_helper(struct frame *frame);
 
 #endif
