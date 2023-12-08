@@ -760,14 +760,14 @@ bool expand_stack(void *addr)
 bool page_fault_helper(struct spt_entry *spte)
 {
   /* Check if the file can be shared */
-  lock_acquire(&clock_list_lock);
-  struct page* share_page = share_existing_page(spte);
+  lock_acquire(&frame_table_lock);
+  struct frame* share_page = share_existing_page(spte);
   if (share_page) {
     /* If the file can be shared, install the page*/
     if(!install_page(share_page->spte->vaddr, share_page->paddr, share_page->spte->writable)) {
       /* Remove the share_page if install_page failed. 
          We shouldn't call free_page because the original shared page shouldn't be removed */
-      delete_page(share_page);
+      delete_frame(share_page);
       free(share_page);
       return false;
     }
@@ -802,8 +802,8 @@ bool page_fault_helper(struct spt_entry *spte)
   }
   spte->is_loaded=true;
 
-  if (lock_held_by_current_thread(&clock_list_lock))
-    lock_release(&clock_list_lock);
+  if (lock_held_by_current_thread(&frame_table_lock))
+    lock_release(&frame_table_lock);
 
   return true;
 }

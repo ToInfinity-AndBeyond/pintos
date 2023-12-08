@@ -10,7 +10,7 @@ static struct hash_iterator clock_iterator;
 
 static struct hash_elem* find_next_clock(void)
 {
-    if(hash_empty(&frame_table))
+    if (hash_empty(&frame_table))
     {
         return NULL;
     }
@@ -26,14 +26,6 @@ static struct hash_elem* find_next_clock(void)
     }
 
     return new_clock;
-}
-
-void frame_table_init(void)
-{
-    list_init(&clock_list);
-    lock_init(&clock_list_lock);
-    lock_init(&eviction_lock);
-    clock_elem=NULL;
 }
 
 static unsigned frame_hash_func(const struct hash_elem *element, void *aux UNUSED)
@@ -54,6 +46,7 @@ void frame_table_init(void)
 {
     hash_init(&frame_table, frame_hash_func, frame_less_func, NULL);
     hash_first(&clock_iterator, &frame_table);
+    lock_init(&eviction_lock);
     lock_init(&frame_table_lock);
     clock_helem=NULL;
 }
