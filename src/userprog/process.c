@@ -176,6 +176,7 @@ start_process (void *file_name_)
     }
   }
   strlcpy(thread_name, file_name, i + 1);
+  /* Initialize hash table spt. */
   spt_init(&(thread_current() -> spt));
   
   /* Initialize interrupt frame and load executable. */
@@ -288,6 +289,7 @@ process_exit (void)
 		elem = next_elem;
 	}
 
+  /* After removing mmap_entry and spt_entry, destory hash table spt. */
   spt_destroy(&cur->spt);
 
   /* Destroy the current process's page directory and switch back
@@ -733,7 +735,8 @@ bool expand_stack(void *addr)
 	insert_spte(&thread_current()->spt, spte);
 	kframe->spte=spte;
   
-
+  /* Create page table using install_page, and if install_page
+     fails, free the resources. */
 	if(!install_page(spte->vaddr, kframe->paddr, spte->writable))
 	{
 		free_frame(kframe->paddr);
@@ -762,6 +765,7 @@ bool page_fault_helper(struct spt_entry *spte)
   } 
   else 
   {
+    /* If the type of spte is SWAP, swap in the resources. */
     swap_in(kframe->paddr, spte->swap_slot);
   }
 
